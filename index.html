@@ -407,8 +407,15 @@ async function searchComplexes(){
       const addr=c.roadAddr||`${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`;
       const mapQ=encodeURIComponent(c.roadAddr||`${gu} ${c.dong} ${c.apt}`);
       const landQ=encodeURIComponent(`${c.dong} ${c.apt}`);
-      const links=`<a href="https://map.naver.com/p/search/${mapQ}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;">네이버 지도 ↗</a>`
-        +` · <a href="https://m.land.naver.com/search/result/${landQ}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;">네이버 부동산 ↗</a>`;
+      // 호갱노노·아실은 단지 고유ID 기반이라 공개 검색URL이 없어 site: 한정 구글검색으로 진입
+      const g=site=>encodeURIComponent(`${gu} ${c.dong} ${c.apt} site:${site}`);
+      const lk=(href,txt)=>`<a href="${href}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;white-space:nowrap;">${txt} ↗</a>`;
+      const links=[
+        lk(`https://map.naver.com/p/search/${mapQ}`,'네이버 지도'),
+        lk(`https://m.land.naver.com/search/result/${landQ}`,'네이버 부동산'),
+        lk(`https://www.google.com/search?q=${g('hogangnono.com')}`,'호갱노노'),
+        lk(`https://www.google.com/search?q=${g('asil.kr')}`,'아실'),
+      ].join(' · ');
       row.innerHTML=`<span class="check-mark ok">✓</span>
         <div style="flex:1;">
           <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
