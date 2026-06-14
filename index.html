@@ -80,6 +80,9 @@
   .check-mark.no{background:rgba(196,54,46,.12); color:var(--red);}
   .check-title{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.2px;}
   .check-detail{font-size:13px; color:var(--sub); margin-top:2px; line-height:1.45;}
+  .actions{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;}
+  .act-btn{padding:9px 16px; border-radius:9999px; border:1px solid var(--line); background:var(--panel); color:var(--gold); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; transition:transform .1s, background .15s;}
+  .act-btn:active{transform:scale(.97);}
   .disclaimer{font-size:12px; color:var(--dim); line-height:1.6; margin:16px 2px 0;}
   @media (max-width:560px){
     body{padding:28px 16px;}
@@ -149,6 +152,10 @@
       <div class="stat"><div class="k" id="outPayLabel">월 납입</div><div class="v" id="outPay" style="color:var(--gold)">–</div></div>
     </div>
     <div class="binding-box" id="outBinding"></div>
+    <div class="actions">
+      <button class="act-btn" id="shareBtn">🔗 공유 링크 복사</button>
+      <button class="act-btn" id="imgBtn">🖼️ 이미지 저장</button>
+    </div>
   </div>
 
   <!-- 자격 체크 -->
@@ -477,6 +484,65 @@ document.querySelectorAll('#pyPresets .toggle-btn').forEach(btn=>{
   });
 });
 updateAreaPyeong();
+
+/* ===== 결과 공유 (URL 해시) + 이미지 저장 (canvas) ===== */
+function buildShareURL(){
+  const g=id=>document.getElementById(id).value;
+  const p=new URLSearchParams({cash:g('cash'),income:g('income'),coIncome:g('coIncome'),
+    age:g('age'),em:g('existingMortgage'),od:g('otherDebt'),
+    fh:state.firstHome?'1':'0',rp:state.repayment});
+  return location.origin+location.pathname+'#'+p.toString();
+}
+function syncToggle(group,val){
+  document.getElementById(group).querySelectorAll('.toggle-btn')
+    .forEach(b=>b.classList.toggle('on',b.dataset.val===val));
+}
+(function applyHash(){
+  if(!location.hash) return;
+  const p=new URLSearchParams(location.hash.slice(1));
+  const set=(id,k)=>{if(p.has(k))document.getElementById(id).value=p.get(k);};
+  set('cash','cash');set('income','income');set('coIncome','coIncome');
+  set('age','age');set('existingMortgage','em');set('otherDebt','od');
+  if(p.has('fh')){state.firstHome=p.get('fh')==='1'; syncToggle('firstHome',String(state.firstHome));}
+  if(p.has('rp')){state.repayment=p.get('rp'); syncToggle('repayment',state.repayment);}
+})();
+document.getElementById('shareBtn').addEventListener('click',async function(){
+  const url=buildShareURL();
+  try{ await navigator.clipboard.writeText(url); }
+  catch(e){ /* 클립보드 불가시 주소창에라도 반영 */ }
+  history.replaceState(null,'',url);
+  const b=this, t=b.textContent; b.textContent='✓ 복사됨'; setTimeout(()=>b.textContent=t,1600);
+});
+document.getElementById('imgBtn').addEventListener('click',function(){
+  const r=maxAffordable(readInputs());
+  const W=1200,H=630, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d');
+  const F=(w,s)=>`${w} ${s}px -apple-system, 'Inter', system-ui, sans-serif`;
+  x.fillStyle='#f5f5f7'; x.fillRect(0,0,W,H);
+  x.fillStyle='#ffffff';
+  if(x.roundRect){x.beginPath();x.roundRect(48,48,W-96,H-96,28);x.fill();}
+  else x.fillRect(48,48,W-96,H-96);
+  const L=104;
+  x.fillStyle='#0066cc'; x.font=F(600,24); x.fillText('영끌컷 · 자력 독립 마지노선',L,148);
+  x.fillStyle='#6e6e73'; x.font=F(400,28); x.fillText('내 자산으로 풀 대출 시 매수 가능 상한',L,196);
+  x.fillStyle='#1d1d1f'; x.font=F(600,104); x.fillText(won(r.price),L,310);
+  x.fillStyle='#6e6e73'; x.font=F(400,24);
+  x.fillText(`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`,L,356);
+  const pay=r.monthly.mode==='grad'?r.monthly.first:r.monthly.pay;
+  const stats=[['대출액',won(r.loan)],['필요 현금',won(r.reqCash)],
+    [r.monthly.mode==='grad'?'월납입(1회차)':'월 납입',won(pay)]];
+  stats.forEach((s,i)=>{const sx=L+i*330;
+    x.fillStyle='#86868b'; x.font=F(400,22); x.fillText(s[0],sx,452);
+    x.fillStyle='#1d1d1f'; x.font=F(600,34); x.fillText(s[1],sx,496);});
+  x.fillStyle='#86868b'; x.font=F(400,22);
+  x.fillText('young-kkeul.vercel.app · 2026.6 규제 기준 추정',L,H-86);
+  c.toBlob(function(blob){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='영끌컷_마지노선.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  },'image/png');
+});
 
 render();
 </script>
