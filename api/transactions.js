@@ -249,7 +249,7 @@ module.exports = async function handler(req, res) {
       if (d.dealDate > c.recentDate) { c.recentDate = d.dealDate; c.recentPrice = d.priceWon; }
     }
 
-    // 예산 상한: '최저 실거래가가 예산 이하'인 단지만 (진입 가능성 기준)
+    // 예산 상한: '평균 실거래가가 예산 이하'인 단지만 (현실적 기준)
     let complexes = [...byComplex.values()]
       .map((c) => ({
         apt: c.apt,
@@ -267,8 +267,8 @@ module.exports = async function handler(req, res) {
           .filter((d) => d.priceWon <= maxPrice)
           .map((d) => d.area),
       }))
-      .filter((c) => c.minPrice <= maxPrice)
-      .sort((a, b) => a.minPrice - b.minPrice)
+      .filter((c) => c.avgPrice <= maxPrice)
+      .sort((a, b) => a.avgPrice - b.avgPrice)
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.

@@ -285,7 +285,7 @@ function render(){
   const r=maxAffordable(u);
   lastPrice=r.price;
   const bl=document.getElementById('budgetLine');
-  if(bl) bl.innerHTML=`예산 상한(마지노선) <b style="color:var(--gold)">${won(r.price)}</b> 이하 실거래 단지를 조회합니다.`;
+  if(bl) bl.innerHTML=`예산 상한(마지노선) <b style="color:var(--gold)">${won(r.price)}</b> 이하 단지를 <b>평균 거래가 기준</b>으로 조회합니다.`;
   document.getElementById('outPrice').textContent=won(r.price);
   document.getElementById('outMeta').textContent=`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`;
   document.getElementById('gauge').style.width=Math.min(100,(r.price/6e8)*100)+'%';
@@ -373,8 +373,8 @@ async function searchComplexes(){
     const res=await fetch(`/api/transactions?${qs.toString()}`);
     const data=await res.json();
     if(!res.ok){status.textContent='조회 실패: '+(data.error||res.status)+(data.hint?' — '+data.hint:'');return;}
-    if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
-    let head=`${gu} · 최근 ${data.months.length}개월 · 예산 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
+    if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 평균가 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
+    let head=`${gu} · 최근 ${data.months.length}개월 · 평균 거래가 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
     if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
     status.textContent=head;
     if(data.householdsNote){const n=document.createElement('div');n.className='hint';n.style.cssText='color:var(--red);margin:6px 0 2px;line-height:1.5;';n.textContent='ⓘ '+data.householdsNote;list.appendChild(n);}
@@ -387,7 +387,7 @@ async function searchComplexes(){
       row.innerHTML=`<span class="check-mark ok">✓</span>
         <div style="flex:1;">
           <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
-          <div class="check-detail">최저 <b style="color:var(--gold)">${won(c.minPrice)}</b> · 평균 ${won(c.avgPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건</div>
+          <div class="check-detail">평균 <b style="color:var(--gold)">${won(c.avgPrice)}</b> · 최저 ${won(c.minPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건</div>
           <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
         </div>`;
       list.appendChild(row);
