@@ -276,10 +276,23 @@ module.exports = async function handler(req, res) {
       if (q.debug && _debug) {
         const fm = _debug.matches.find((m) => m.kaptCode);
         if (fm) {
-          const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
-          _debug.basicSampleJson = (await (await fetch(`${KAPT_INFO_URL}?${qd.toString()}`)).text()).slice(0, 900);
-          const qx = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode });
-          _debug.basicSampleDefault = (await (await fetch(`${KAPT_INFO_URL}?${qx.toString()}`)).text()).slice(0, 900);
+          const candidates = [
+            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV3/getAphusBassInfoV3',
+            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV2/getAphusBassInfoV2',
+            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV1/getAphusBassInfoV1',
+            'https://apis.data.go.kr/1613000/AptBasisInfoService3/getAphusBassInfo3',
+            'https://apis.data.go.kr/1613000/AptBasisInfoService/getAphusBassInfo',
+            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusBassInfoV4',
+          ];
+          _debug.kaptCode = fm.kaptCode;
+          _debug.probe = {};
+          for (const url of candidates) {
+            try {
+              const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
+              const txt = await (await fetch(`${url}?${qd.toString()}`)).text();
+              _debug.probe[url.split('/').slice(-2).join('/')] = txt.slice(0, 160).replace(/\s+/g, ' ');
+            } catch (e) { _debug.probe[url] = 'ERR ' + e.message; }
+          }
         }
       }
     } catch (e) {
