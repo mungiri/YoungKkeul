@@ -125,7 +125,7 @@ const coreName = (s) => normName(s).replace(/\d+(차|동|단지|구역|지구)?/
 // 가격 추세: 거래를 날짜순 정렬해 전반/후반 ㎡당 평균가를 비교(%). 데이터 부족 시 null.
 function priceTrend(deals) {
   const v = deals.filter((d) => d.area > 0).sort((a, b) => a.dealDate.localeCompare(b.dealDate));
-  if (v.length < 2 || v[0].dealDate.slice(0, 7) === v[v.length - 1].dealDate.slice(0, 7)) return null; // 같은 달뿐이면 추세 없음
+  if (v.length < 3 || v[0].dealDate.slice(0, 7) === v[v.length - 1].dealDate.slice(0, 7)) return null; // 거래 3건 미만/같은 달뿐이면 노이즈라 추세 없음
   const ppm = (d) => d.priceWon / d.area;
   const mid = Math.floor(v.length / 2);
   const older = v.slice(0, mid || 1), newer = v.slice(mid);
