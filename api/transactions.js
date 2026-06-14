@@ -45,6 +45,8 @@ const KAPT_LIST_URL =
   'https://apis.data.go.kr/1613000/AptListService3/getSigunguAptList3';   // 시군구별 단지목록 → kaptCode
 const KAPT_INFO_URL =
   'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusBassInfoV4'; // 단지 기본정보 → 세대수(kaptdaCnt). V3는 폐기, V4가 현행(2026)
+const KAPT_DTL_URL =
+  'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusDtlInfoV4'; // 단지 상세정보 → 지하철 호선/역/도보시간 등
 
 // 최근 N개월의 YYYYMM 배열 (이번 달 제외 — 당월은 데이터가 거의 없으므로 직전 달부터)
 function recentYearMonths(n) {
@@ -291,12 +293,14 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null;
+    let householdsAvailable = true, householdsNote = null, _dtl = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
+      let firstK = null;
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
         if (!k) { c.households = null; return; }
+        if (!firstK) firstK = k.kaptCode;
         c.matchedName = k.kaptName;
         try {
           const info = await fetchAptBasic(serviceKey, k.kaptCode);
@@ -306,6 +310,10 @@ module.exports = async function handler(req, res) {
           c.addr = info.addr;
         } catch { c.households = null; }
       }));
+      if (q.debug && firstK) {
+        const qd = new URLSearchParams({ serviceKey, kaptCode: firstK, _type: 'json' });
+        _dtl = { kaptCode: firstK, raw: (await (await fetch(`${KAPT_DTL_URL}?${qd.toString()}`)).text()).slice(0, 1800) };
+      }
     } catch (e) {
       householdsAvailable = false;
       const forbidden = /forbidden/i.test(e.message || '');
@@ -326,6 +334,7 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
+      _dtl,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });
