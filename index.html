@@ -136,6 +136,23 @@
     <div id="checks"></div>
   </div>
 
+  <!-- 매물(실거래가) 검색 -->
+  <div class="panel">
+    <div class="res-label" style="margin-bottom:4px;">이 예산으로 살 수 있는 단지</div>
+    <div class="hint" id="budgetLine" style="margin-bottom:14px;">위에서 계산된 마지노선 가격을 예산 상한으로 국토부 실거래가를 조회합니다.</div>
+    <div class="grid3" style="gap:12px; margin-bottom:14px;">
+      <label class="field" style="margin:0;"><div class="flabel">자치구</div>
+        <div class="frow"><select id="gu" style="flex:1; background:transparent; border:none; outline:none; color:var(--ink); font-size:16px; font-family:inherit;"></select></div></label>
+      <label class="field" style="margin:0;"><div class="flabel">전용면적 하한</div>
+        <div class="frow"><input id="minArea" type="number" step="1" value="40" style="font-size:18px;"><span class="suffix">㎡</span></div></label>
+      <label class="field" style="margin:0;"><div class="flabel">전용면적 상한</div>
+        <div class="frow"><input id="maxArea" type="number" step="1" value="85" style="font-size:18px;"><span class="suffix">㎡</span></div></label>
+    </div>
+    <button id="searchBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 예산으로 살 수 있는 단지 보기</button>
+    <div id="searchStatus" class="hint" style="margin-top:10px;"></div>
+    <div id="complexList" style="margin-top:8px;"></div>
+  </div>
+
   <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 저장되지 않습니다.</p>
 </div>
 
@@ -234,6 +251,7 @@ function won(n){
 
 /* ===== 상태 + 렌더 ===== */
 const state={firstHome:true, repayment:'graduated'};
+let lastPrice=0;   // 매물 검색의 예산 상한 = 최신 마지노선 가격(원)
 function readInputs(){
   const g=id=>parseFloat(document.getElementById(id).value)||0;
   return {
@@ -246,6 +264,9 @@ function readInputs(){
 function render(){
   const u=readInputs();
   const r=maxAffordable(u);
+  lastPrice=r.price;
+  const bl=document.getElementById('budgetLine');
+  if(bl) bl.innerHTML=`예산 상한(마지노선) <b style="color:var(--gold)">${won(r.price)}</b> 이하 실거래 단지를 조회합니다.`;
   document.getElementById('outPrice').textContent=won(r.price);
   document.getElementById('outMeta').textContent=`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`;
   document.getElementById('gauge').style.width=Math.min(100,(r.price/6e8)*100)+'%';
@@ -279,6 +300,47 @@ function render(){
     });
   });
 });
+
+/* ===== 매물(실거래가) 검색 ===== */
+const SEOUL_GU=['종로구','중구','용산구','성동구','광진구','동대문구','중랑구','성북구','강북구','도봉구','노원구','은평구','서대문구','마포구','양천구','강서구','구로구','금천구','영등포구','동작구','관악구','서초구','강남구','송파구','강동구'];
+(function initGu(){
+  const sel=document.getElementById('gu');
+  SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+  sel.value='성동구';
+})();
+const py=a=>Math.round(a/3.305785);   // 전용 ㎡ → 평(근사)
+
+async function searchComplexes(){
+  const status=document.getElementById('searchStatus');
+  const list=document.getElementById('complexList');
+  list.innerHTML='';
+  if(lastPrice<=0){status.textContent='먼저 위에서 마지노선 가격이 계산되어야 합니다.';return;}
+  const gu=document.getElementById('gu').value;
+  const minArea=parseFloat(document.getElementById('minArea').value)||0;
+  const maxArea=parseFloat(document.getElementById('maxArea').value)||9999;
+  status.textContent=`${gu} 실거래가 조회 중…`;
+  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),months:'3'});
+  try{
+    const res=await fetch(`/api/transactions?${qs.toString()}`);
+    const data=await res.json();
+    if(!res.ok){status.textContent='조회 실패: '+(data.error||res.status)+(data.hint?' — '+data.hint:'');return;}
+    if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
+    status.textContent=`${gu} · 최근 ${data.months.length}개월 · 예산 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
+    data.complexes.forEach(c=>{
+      const row=document.createElement('div'); row.className='check-row';
+      const areas=c.affordableAreas.length?`${Math.min(...c.affordableAreas).toFixed(0)}~${Math.max(...c.affordableAreas).toFixed(0)}㎡(${py(Math.min(...c.affordableAreas))}~${py(Math.max(...c.affordableAreas))}평)`:'-';
+      row.innerHTML=`<span class="check-mark ok">✓</span>
+        <div style="flex:1;">
+          <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''}</span></div>
+          <div class="check-detail">최저 <b style="color:var(--gold)">${won(c.minPrice)}</b> · 평균 ${won(c.avgPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건</div>
+          <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
+        </div>`;
+      list.appendChild(row);
+    });
+  }catch(e){status.textContent='네트워크 오류: '+e.message;}
+}
+document.getElementById('searchBtn').addEventListener('click',searchComplexes);
+
 render();
 </script>
 </body>
