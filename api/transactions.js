@@ -168,17 +168,26 @@ async function fetchAptBasic(serviceKey, kaptCode) {
   return { households: Number(it.kaptdaCnt) || null, dongCount: Number(it.kaptDongCnt) || null };
 }
 
-// 실거래 단지 ↔ K-apt 단지 매칭 (같은 법정동 우선 + 정규화 이름 일치/포함)
+// 실거래 단지 ↔ K-apt 단지 매칭 (같은 법정동 우선 + 정규화 이름 일치/포함, 코어명 보강)
 function matchKapt(kaptList, apt, dong) {
   const na = normName(apt);
   if (!na) return null;
   const sameDong = kaptList.filter((k) => k.dong === dong);
   const pool = sameDong.length ? sameDong : kaptList;
-  return (
-    pool.find((k) => normName(k.kaptName) === na) ||
-    pool.find((k) => { const nk = normName(k.kaptName); return nk && (nk.includes(na) || na.includes(nk)); }) ||
-    null
-  );
+  // 1) 정규화 완전일치  2) 포함관계
+  let hit = pool.find((k) => normName(k.kaptName) === na) ||
+            pool.find((k) => { const nk = normName(k.kaptName); return nk && (nk.includes(na) || na.includes(nk)); });
+  if (hit) return hit;
+  // 3) 숫자·차·단지 제거한 코어명 비교(오매칭 방지 위해 3자 이상 + 유일 후보일 때만)
+  const core = (s) => normName(s).replace(/\d+(차|단지|동|지구)?/g, '').replace(/차|단지|지구/g, '');
+  const ca = core(apt);
+  if (ca.length >= 3) {
+    const cands = pool.filter((k) => { const ck = core(k.kaptName); return ck && (ck === ca || ck.includes(ca) || ca.includes(ck)); });
+    if (cands.length === 1) return cands[0];
+    const exact = cands.find((k) => core(k.kaptName) === ca);
+    if (exact) return exact;
+  }
+  return null;
 }
 
 module.exports = async function handler(req, res) {
@@ -258,13 +267,11 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null, _debug = null;
+    let householdsAvailable = true, householdsNote = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
-      if (q.debug) _debug = { kaptListCount: kaptList.length, sampleKaptNames: kaptList.slice(0, 10).map((k) => `${k.kaptName}(${k.dong})`), matches: [] };
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
-        if (q.debug) _debug.matches.push({ apt: c.apt, dong: c.dong, matched: k ? k.kaptName : null, kaptCode: k ? k.kaptCode : null });
         if (!k) { c.households = null; return; }
         c.matchedName = k.kaptName;
         try {
@@ -273,14 +280,6 @@ module.exports = async function handler(req, res) {
           c.dongCount = info.dongCount;
         } catch { c.households = null; }
       }));
-      if (q.debug && _debug) {
-        const fm = _debug.matches.find((m) => m.kaptCode);
-        if (fm) {
-          _debug.kaptCode = fm.kaptCode;
-          const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
-          _debug.basicFull = (await (await fetch(`${KAPT_INFO_URL}?${qd.toString()}`)).text()).slice(0, 1600);
-        }
-      }
     } catch (e) {
       householdsAvailable = false;
       const forbidden = /forbidden/i.test(e.message || '');
@@ -300,7 +299,6 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
-      _debug,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });
