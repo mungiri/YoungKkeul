@@ -147,6 +147,16 @@
         <div class="frow"><input id="minArea" type="number" step="1" value="40" style="font-size:18px;"><span class="suffix">㎡</span></div></label>
       <label class="field" style="margin:0;"><div class="flabel">전용면적 상한</div>
         <div class="frow"><input id="maxArea" type="number" step="1" value="85" style="font-size:18px;"><span class="suffix">㎡</span></div></label>
+      <label class="field" style="margin:0;"><div class="flabel">최소 세대수</div>
+        <div class="frow"><input id="minHouseholds" type="number" step="100" value="0" style="font-size:18px;"><span class="suffix">세대↑</span></div>
+        <div class="hint">0=전체 · 대단지 선호 시</div></label>
+    </div>
+    <div class="hint" id="areaPyeong" style="margin:-4px 0 10px;"></div>
+    <div class="toggle-row" id="pyPresets" style="margin-bottom:14px;">
+      <button class="toggle-btn" data-min="36" data-max="46">소형 14~18평형</button>
+      <button class="toggle-btn" data-min="51" data-max="62">25평형(59㎡)</button>
+      <button class="toggle-btn" data-min="78" data-max="88">34평형(84㎡)</button>
+      <button class="toggle-btn" data-min="95" data-max="120">40평형↑</button>
     </div>
     <button id="searchBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 예산으로 살 수 있는 단지 보기</button>
     <div id="searchStatus" class="hint" style="margin-top:10px;"></div>
@@ -308,7 +318,24 @@ const SEOUL_GU=['종로구','중구','용산구','성동구','광진구','동대
   SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
   sel.value='성동구';
 })();
-const py=a=>Math.round(a/3.305785);   // 전용 ㎡ → 평(근사)
+/* ===== 평형 ↔ 전용면적 정밀 매핑 =====
+ * 주의: MOLIT 데이터는 '전용면적'. 한국에서 통칭하는 'N평형'은 '공급면적' 기준
+ * 분양평형이라 전용면적÷3.3058(전용평수)과 다르다. (84㎡전용 = 전용 25.4평이지만 통칭 34평형)
+ * 정밀화 방법: 표준 분양타입에 가까우면(±3㎡) 통칭 평형을 쓰고,
+ *            비표준 크기는 공급면적 추정(전용률 0.74)으로 환산.
+ * 1평=3.305785㎡. 표준타입 [전용면적㎡, 통칭평형]. */
+const PYEONG_TYPES=[[33,14],[36,15],[39,16],[42,17],[46,18],[49,20],[51,21],[52,22],
+  [59,25],[69,28],[72,29],[74,30],[78,32],[84,34],[91,37],[99,40],[102,41],
+  [109,43],[114,45],[116,46],[124,49],[134,53],[145,57],[164,64],[184,72]];
+const PYEONG_PER_M2=3.305785, EFFICIENCY=0.74;
+const exPyeong=ex=>ex/PYEONG_PER_M2;                 // 전용 평수(실측)
+function typePyeong(ex){                              // 전용㎡ → 통칭 분양평형(숫자)
+  let best=null,bd=Infinity;
+  for(const[a,p]of PYEONG_TYPES){const d=Math.abs(a-ex);if(d<bd){bd=d;best=p;}}
+  return bd<=3.0?best:Math.round(ex/EFFICIENCY/PYEONG_PER_M2);
+}
+const pyLabel=ex=>`${typePyeong(ex)}평형`;            // 단일값 라벨
+function pyRange(a,b){const p=typePyeong(a),q=typePyeong(b);return p===q?`${p}평형`:`${p}~${q}평형`;}
 
 async function searchComplexes(){
   const status=document.getElementById('searchStatus');
@@ -318,20 +345,25 @@ async function searchComplexes(){
   const gu=document.getElementById('gu').value;
   const minArea=parseFloat(document.getElementById('minArea').value)||0;
   const maxArea=parseFloat(document.getElementById('maxArea').value)||9999;
+  const minHouseholds=parseInt(document.getElementById('minHouseholds').value)||0;
   status.textContent=`${gu} 실거래가 조회 중…`;
-  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),months:'3'});
+  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),minHouseholds:String(minHouseholds),months:'3'});
   try{
     const res=await fetch(`/api/transactions?${qs.toString()}`);
     const data=await res.json();
     if(!res.ok){status.textContent='조회 실패: '+(data.error||res.status)+(data.hint?' — '+data.hint:'');return;}
     if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
-    status.textContent=`${gu} · 최근 ${data.months.length}개월 · 예산 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
+    let head=`${gu} · 최근 ${data.months.length}개월 · 예산 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
+    if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
+    status.textContent=head;
     data.complexes.forEach(c=>{
       const row=document.createElement('div'); row.className='check-row';
-      const areas=c.affordableAreas.length?`${Math.min(...c.affordableAreas).toFixed(0)}~${Math.max(...c.affordableAreas).toFixed(0)}㎡(${py(Math.min(...c.affordableAreas))}~${py(Math.max(...c.affordableAreas))}평)`:'-';
+      const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);
+      const areas=c.affordableAreas.length?`${aMin.toFixed(0)}~${aMax.toFixed(0)}㎡ (${pyRange(aMin,aMax)})`:'-';
+      const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'세대수 미확인';
       row.innerHTML=`<span class="check-mark ok">✓</span>
         <div style="flex:1;">
-          <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''}</span></div>
+          <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
           <div class="check-detail">최저 <b style="color:var(--gold)">${won(c.minPrice)}</b> · 평균 ${won(c.avgPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건</div>
           <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
         </div>`;
@@ -340,6 +372,26 @@ async function searchComplexes(){
   }catch(e){status.textContent='네트워크 오류: '+e.message;}
 }
 document.getElementById('searchBtn').addEventListener('click',searchComplexes);
+
+/* 면적 입력 ↔ 평형 라이브 환산 + 프리셋 */
+function updateAreaPyeong(){
+  const mn=parseFloat(document.getElementById('minArea').value)||0;
+  const mx=parseFloat(document.getElementById('maxArea').value)||0;
+  const el=document.getElementById('areaPyeong');
+  if(!mn&&!mx){el.textContent='';return;}
+  el.innerHTML=`전용 ${mn||0}~${mx||0}㎡ ≈ 통칭 <b style="color:var(--gold)">${pyRange(mn,mx)}</b> · 전용평수 ${exPyeong(mn).toFixed(0)}~${exPyeong(mx).toFixed(0)}평`;
+}
+['minArea','maxArea'].forEach(id=>document.getElementById(id).addEventListener('input',updateAreaPyeong));
+document.querySelectorAll('#pyPresets .toggle-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.getElementById('minArea').value=btn.dataset.min;
+    document.getElementById('maxArea').value=btn.dataset.max;
+    document.querySelectorAll('#pyPresets .toggle-btn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    updateAreaPyeong();
+  });
+});
+updateAreaPyeong();
 
 render();
 </script>

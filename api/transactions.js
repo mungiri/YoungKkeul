@@ -40,6 +40,12 @@ const SEOUL_LAWD = {
 const MOLIT_URL =
   'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade';
 
+// 한국부동산원 공동주택 기본정보(K-apt) — 세대수 출처 (별도 활용신청 필요, 같은 serviceKey)
+const KAPT_LIST_URL =
+  'https://apis.data.go.kr/1613000/AptListService3/getSigunguAptList3';   // 시군구별 단지목록 → kaptCode
+const KAPT_INFO_URL =
+  'https://apis.data.go.kr/1613000/AptBasisInfoServiceV3/getAphusBassInfoV3'; // 단지 기본정보 → 세대수(kaptdaCnt)
+
 // 최근 N개월의 YYYYMM 배열 (이번 달 제외 — 당월은 데이터가 거의 없으므로 직전 달부터)
 function recentYearMonths(n) {
   const out = [];
@@ -99,6 +105,55 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
   return items;
 }
 
+// 단지명 정규화: 공백·아파트/APT·괄호내용·구분기호 제거해 매칭 안정화
+function normName(s) {
+  return String(s || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, '')
+    .replace(/아파트|아파트단지|단지|APT|apt/g, '')
+    .replace(/[·.,'’\-]/g, '')
+    .toLowerCase();
+}
+
+// K-apt 시군구 단지목록 → [{kaptCode, kaptName, dong(as3)}]
+async function fetchSigunguApts(serviceKey, sigunguCode) {
+  const qs = new URLSearchParams({ serviceKey, sigunguCode, pageNo: '1', numOfRows: '2000' });
+  const xml = await (await fetch(`${KAPT_LIST_URL}?${qs.toString()}`)).text();
+  const code = tag(xml, 'resultCode') || tag(xml, 'returnReasonCode');
+  if (code && code !== '000' && code !== '00') {
+    const e = new Error(tag(xml, 'resultMsg') || tag(xml, 'returnAuthMsg') || 'K-apt list error');
+    e.code = code; throw e;
+  }
+  return (xml.match(/<item>[\s\S]*?<\/item>/g) || []).map((b) => ({
+    kaptCode: tag(b, 'kaptCode'),
+    kaptName: tag(b, 'kaptName'),
+    dong: tag(b, 'as3'),
+  }));
+}
+
+// K-apt 단지 기본정보 → { households(세대수), dongCount(동수) }
+async function fetchAptBasic(serviceKey, kaptCode) {
+  const qs = new URLSearchParams({ serviceKey, kaptCode });
+  const xml = await (await fetch(`${KAPT_INFO_URL}?${qs.toString()}`)).text();
+  return {
+    households: Number(tag(xml, 'kaptdaCnt')) || null,
+    dongCount: Number(tag(xml, 'kaptDongCnt')) || null,
+  };
+}
+
+// 실거래 단지 ↔ K-apt 단지 매칭 (같은 법정동 우선 + 정규화 이름 일치/포함)
+function matchKapt(kaptList, apt, dong) {
+  const na = normName(apt);
+  if (!na) return null;
+  const sameDong = kaptList.filter((k) => k.dong === dong);
+  const pool = sameDong.length ? sameDong : kaptList;
+  return (
+    pool.find((k) => normName(k.kaptName) === na) ||
+    pool.find((k) => { const nk = normName(k.kaptName); return nk && (nk.includes(na) || na.includes(nk)); }) ||
+    null
+  );
+}
+
 module.exports = async function handler(req, res) {
   try {
     const serviceKey = process.env.MOLIT_API_KEY;
@@ -125,6 +180,7 @@ module.exports = async function handler(req, res) {
     const maxArea = Number(q.maxArea) || Infinity;
     const months = Math.min(Math.max(Number(q.months) || 3, 1), 12);
     const limit = Math.min(Math.max(Number(q.limit) || 30, 1), 100);
+    const minHouseholds = Number(q.minHouseholds) || 0;
 
     // 최근 N개월 병렬 조회
     const yms = recentYearMonths(months);
@@ -174,13 +230,40 @@ module.exports = async function handler(req, res) {
       .sort((a, b) => a.minPrice - b.minPrice)
       .slice(0, limit);
 
+    // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
+    let householdsAvailable = true, householdsNote = null;
+    try {
+      const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
+      await Promise.all(complexes.map(async (c) => {
+        const k = matchKapt(kaptList, c.apt, c.dong);
+        if (!k) { c.households = null; return; }
+        c.matchedName = k.kaptName;
+        try {
+          const info = await fetchAptBasic(serviceKey, k.kaptCode);
+          c.households = info.households;
+          c.dongCount = info.dongCount;
+        } catch { c.households = null; }
+      }));
+    } catch (e) {
+      householdsAvailable = false;
+      householdsNote = `세대수(공동주택 기본정보 API) 미연동: ${e.message}. data.go.kr에서 "공동주택 기본 정보 서비스"·"공동주택 단지 목록 서비스" 활용신청 시 동일 키로 활성화됩니다.`;
+      complexes.forEach((c) => { c.households = null; });
+    }
+
+    // 최소 세대수 필터 (세대수 확인된 단지에만 적용 / 미확인은 유지해 매칭 누락에 의한 과도 제외 방지)
+    if (minHouseholds > 0) {
+      complexes = complexes.filter((c) => c.households == null || c.households >= minHouseholds);
+    }
+
     res.status(200).json({
-      query: { gu: q.gu || null, lawdCd, maxPrice: Number.isFinite(maxPrice) ? maxPrice : null, months, minArea, maxArea: Number.isFinite(maxArea) ? maxArea : null },
+      query: { gu: q.gu || null, lawdCd, maxPrice: Number.isFinite(maxPrice) ? maxPrice : null, months, minArea, maxArea: Number.isFinite(maxArea) ? maxArea : null, minHouseholds: minHouseholds || null },
       months: yms,
       totalDeals: deals.length,
       complexCount: complexes.length,
+      householdsAvailable,
+      householdsNote,
       complexes,
-      disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다.',
+      disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });
   } catch (e) {
     res.status(502).json({ error: 'MOLIT API 조회 실패', detail: e.message, code: e.code || null });
