@@ -165,12 +165,17 @@ async function fetchSigunguApts(serviceKey, sigunguCode) {
   return parsed.items.map((it) => ({ kaptCode: it.kaptCode, kaptName: it.kaptName, dong: it.as3 }));
 }
 
-// K-apt 단지 기본정보 → { households(세대수), dongCount(동수) }
+// K-apt 단지 기본정보 → { households(세대수), dongCount(동수), roadAddr(도로명), addr(지번) }
 async function fetchAptBasic(serviceKey, kaptCode) {
   const qs = new URLSearchParams({ serviceKey, kaptCode, _type: 'json' });
   const parsed = parseApiItems(await (await fetch(`${KAPT_INFO_URL}?${qs.toString()}`)).text());
   const it = parsed.items[0] || {};
-  return { households: Number(it.kaptdaCnt) || null, dongCount: Number(it.kaptDongCnt) || null };
+  return {
+    households: Number(it.kaptdaCnt) || null,
+    dongCount: Number(it.kaptDongCnt) || null,
+    roadAddr: (it.doroJuso || '').trim() || null,
+    addr: (it.kaptAddr || '').trim() || null,
+  };
 }
 
 // 실거래 단지 ↔ K-apt 단지 매칭 (반드시 같은 법정동 안에서만 — 오매칭 방지)
@@ -283,6 +288,8 @@ module.exports = async function handler(req, res) {
           const info = await fetchAptBasic(serviceKey, k.kaptCode);
           c.households = info.households;
           c.dongCount = info.dongCount;
+          c.roadAddr = info.roadAddr;
+          c.addr = info.addr;
         } catch { c.households = null; }
       }));
     } catch (e) {
