@@ -258,11 +258,13 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null;
+    let householdsAvailable = true, householdsNote = null, _debug = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
+      if (q.debug) _debug = { kaptListCount: kaptList.length, sampleKaptNames: kaptList.slice(0, 10).map((k) => `${k.kaptName}(${k.dong})`), matches: [] };
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
+        if (q.debug) _debug.matches.push({ apt: c.apt, dong: c.dong, matched: k ? k.kaptName : null, kaptCode: k ? k.kaptCode : null });
         if (!k) { c.households = null; return; }
         c.matchedName = k.kaptName;
         try {
@@ -290,6 +292,7 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
+      _debug,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });
