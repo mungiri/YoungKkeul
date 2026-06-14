@@ -105,15 +105,20 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
   return items;
 }
 
-// 단지명 정규화: 공백·아파트/APT·괄호내용·구분기호 제거해 매칭 안정화
+// 단지명 정규화: 괄호·관리사무소·공백·아파트/임대 등 군더더기 제거해 매칭 안정화
 function normName(s) {
   return String(s || '')
     .replace(/\(.*?\)/g, '')
+    .replace(/제?\s*\d+\s*관리사무소/g, '')
+    .replace(/관리사무소/g, '')
     .replace(/\s+/g, '')
-    .replace(/아파트|아파트단지|단지|APT|apt/g, '')
+    .replace(/아파트|아파트단지|단지|임대|공공|APT|apt/g, '')
     .replace(/[·.,'’\-]/g, '')
     .toLowerCase();
 }
+// 코어명: 숫자 및 숫자에 붙은 차/동/단지/구역/지구 제거(1차·2차, 214동 등 흡수).
+//        단독 '동'/'구역'은 브랜드명 보존 위해 남김(예: 동부센트레빌).
+const coreName = (s) => normName(s).replace(/\d+(차|동|단지|구역|지구)?/g, '').replace(/차|지구/g, '');
 
 // data.go.kr 응답(JSON 또는 XML) 공용 파서 → { items, error, code }
 //  - K-apt V3 서비스는 기본 응답이 JSON, 실거래가는 XML, 인증오류는 XML(cmmMsgHeader)로 와서 둘 다 처리.
@@ -168,23 +173,22 @@ async function fetchAptBasic(serviceKey, kaptCode) {
   return { households: Number(it.kaptdaCnt) || null, dongCount: Number(it.kaptDongCnt) || null };
 }
 
-// 실거래 단지 ↔ K-apt 단지 매칭 (같은 법정동 우선 + 정규화 이름 일치/포함, 코어명 보강)
+// 실거래 단지 ↔ K-apt 단지 매칭 (반드시 같은 법정동 안에서만 — 오매칭 방지)
 function matchKapt(kaptList, apt, dong) {
   const na = normName(apt);
   if (!na) return null;
-  const sameDong = kaptList.filter((k) => k.dong === dong);
-  const pool = sameDong.length ? sameDong : kaptList;
+  const pool = kaptList.filter((k) => k.dong === dong);
+  if (!pool.length) return null;   // 같은 법정동 후보가 없으면 포기(타 동 오매칭 방지)
   // 1) 정규화 완전일치  2) 포함관계
   let hit = pool.find((k) => normName(k.kaptName) === na) ||
             pool.find((k) => { const nk = normName(k.kaptName); return nk && (nk.includes(na) || na.includes(nk)); });
   if (hit) return hit;
-  // 3) 숫자·차·단지 제거한 코어명 비교(오매칭 방지 위해 3자 이상 + 유일 후보일 때만)
-  const core = (s) => normName(s).replace(/\d+(차|단지|동|지구)?/g, '').replace(/차|단지|지구/g, '');
-  const ca = core(apt);
-  if (ca.length >= 3) {
-    const cands = pool.filter((k) => { const ck = core(k.kaptName); return ck && (ck === ca || ck.includes(ca) || ca.includes(ck)); });
+  // 3) 코어명 비교(차수/숫자 흡수). 같은 법정동 안 유일 후보이거나 코어 완전일치일 때만.
+  const ca = coreName(apt);
+  if (ca.length >= 2) {
+    const cands = pool.filter((k) => { const ck = coreName(k.kaptName); return ck && (ck === ca || ck.includes(ca) || ca.includes(ck)); });
     if (cands.length === 1) return cands[0];
-    const exact = cands.find((k) => core(k.kaptName) === ca);
+    const exact = cands.find((k) => coreName(k.kaptName) === ca);
     if (exact) return exact;
   }
   return null;
@@ -268,13 +272,11 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null, _diag = null;
+    let householdsAvailable = true, householdsNote = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
-      if (q.debug) _diag = [];
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
-        if (q.debug) _diag.push({ apt: c.apt, dong: c.dong, jibun: c.jibun, matched: k ? k.kaptName : null, sameDongKapt: kaptList.filter((x) => x.dong === c.dong).map((x) => x.kaptName) });
         if (!k) { c.households = null; return; }
         c.matchedName = k.kaptName;
         try {
@@ -290,9 +292,10 @@ module.exports = async function handler(req, res) {
       complexes.forEach((c) => { c.households = null; });
     }
 
-    // 최소 세대수 필터 (세대수 확인된 단지에만 적용 / 미확인은 유지해 매칭 누락에 의한 과도 제외 방지)
-    if (minHouseholds > 0) {
-      complexes = complexes.filter((c) => c.households == null || c.households >= minHouseholds);
+    // 최소 세대수 필터. K-apt 연동 정상이면 미확인(=K-apt 미등록 소규모 추정)도 제외해
+    //  '대단지 필터'가 실제로 의미있게 동작하게 한다. 연동 실패 시엔 필터 무력화(전부 유지).
+    if (minHouseholds > 0 && householdsAvailable) {
+      complexes = complexes.filter((c) => c.households != null && c.households >= minHouseholds);
     }
 
     res.status(200).json({
@@ -302,7 +305,6 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
-      _diag,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });

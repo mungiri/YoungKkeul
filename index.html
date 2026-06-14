@@ -378,11 +378,12 @@ async function searchComplexes(){
     if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
     status.textContent=head;
     if(data.householdsNote){const n=document.createElement('div');n.className='hint';n.style.cssText='color:var(--red);margin:6px 0 2px;line-height:1.5;';n.textContent='ⓘ '+data.householdsNote;list.appendChild(n);}
+    if(data.householdsAvailable!==false){const small=data.complexes.filter(c=>c.households==null).length;if(small){const lg=document.createElement('div');lg.className='hint';lg.style.cssText='color:var(--dim);margin:4px 0 2px;line-height:1.5;';lg.innerHTML=`ⓘ "<span style="color:var(--sub)">소규모 추정</span>" = K-apt 의무관리대상(대체로 150세대↑)에 없는 단지 (나홀로·도시형생활주택 등). 이번 결과 ${small}곳.`;list.appendChild(lg);}}
     data.complexes.forEach(c=>{
       const row=document.createElement('div'); row.className='check-row';
       const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);
       const areas=c.affordableAreas.length?`${aMin.toFixed(0)}~${aMax.toFixed(0)}㎡ (${pyRange(aMin,aMax)})`:'-';
-      const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'세대수 미확인';
+      const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'<span style="color:var(--dim)">소규모 추정</span>';
       row.innerHTML=`<span class="check-mark ok">✓</span>
         <div style="flex:1;">
           <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
