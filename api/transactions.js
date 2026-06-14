@@ -145,6 +145,10 @@ function parseApiItems(text) {
     }
     return o;
   });
+  // 아이템도 정상 응답 구조(items/totalCount/body)도 아니면 비정상 평문(예: 403 "Forbidden")
+  if (!items.length && !/<items|<totalCount|<body|"items"|"totalCount"/i.test(t)) {
+    return { error: t ? `예상치 못한 응답: ${t.slice(0, 140)}` : '빈 응답', items: [] };
+  }
   return { items };
 }
 
@@ -280,7 +284,8 @@ module.exports = async function handler(req, res) {
       }));
     } catch (e) {
       householdsAvailable = false;
-      householdsNote = `세대수(공동주택 기본정보 API) 미연동: ${e.message}. data.go.kr에서 "공동주택 기본 정보 서비스"·"공동주택 단지 목록 서비스" 활용신청 시 동일 키로 활성화됩니다.`;
+      const forbidden = /forbidden/i.test(e.message || '');
+      householdsNote = `세대수 미연동: ${e.message}${forbidden ? ' (이 키로 해당 API 미승인)' : ''}. data.go.kr에서 "공동주택 단지 목록제공 서비스"·"공동주택 기본 정보제공 서비스"를 활용신청하면 동일 키로 활성화됩니다(승인 후 수분 소요).`;
       complexes.forEach((c) => { c.households = null; });
     }
 
