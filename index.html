@@ -84,6 +84,22 @@
   .act-btn{padding:9px 16px; border-radius:9999px; border:1px solid var(--line); background:var(--panel); color:var(--gold); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; transition:transform .1s, background .15s;}
   .act-btn:active{transform:scale(.97);}
   .disclaimer{font-size:12px; color:var(--dim); line-height:1.6; margin:16px 2px 0;}
+  /* 업데이트 안내 모달 */
+  .modal-ov{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  .modal-ov.show{display:flex;}
+  .modal{background:var(--panel); border-radius:18px; max-width:440px; width:100%; padding:28px 26px; max-height:86vh; overflow:auto;}
+  .modal h2{font-size:22px; font-weight:600; letter-spacing:-.3px; margin:0 0 4px;}
+  .modal .m-sub{color:var(--sub); font-size:14px; margin-bottom:16px; line-height:1.5;}
+  .feat{display:flex; gap:12px; padding:11px 0; border-top:1px solid var(--line);}
+  .feat:first-of-type{border-top:none;}
+  .feat .ic{font-size:20px; flex-shrink:0; width:26px; text-align:center;}
+  .feat .ft{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.2px;}
+  .feat .fd{font-size:13px; color:var(--sub); margin-top:2px; line-height:1.45;}
+  .modal-foot{display:flex; align-items:center; justify-content:space-between; margin-top:20px; gap:12px; flex-wrap:wrap;}
+  .modal-foot label{display:flex; align-items:center; gap:7px; font-size:13px; color:var(--sub); cursor:pointer;}
+  .modal-foot input{accent-color:var(--gold); width:16px; height:16px;}
+  .close-btn{padding:11px 24px; border-radius:9999px; border:none; background:var(--gold); color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; transition:transform .1s;}
+  .close-btn:active{transform:scale(.97);}
   @media (max-width:560px){
     body{padding:28px 16px;}
     .grid2{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;}
@@ -202,6 +218,24 @@
   </div>
 
   <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 저장되지 않습니다.</p>
+</div>
+
+<!-- 업데이트 안내 모달 -->
+<div class="modal-ov" id="whatsnew">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="업데이트 안내">
+    <h2>새로워진 영끌컷 ✨</h2>
+    <div class="m-sub">예산으로 살 수 있는 단지를 더 똑똑하게 찾아드려요.</div>
+    <div class="feat"><div class="ic">🚇</div><div><div class="ft">역세권 정보 · 역세권만 필터</div><div class="fd">단지별 가까운 지하철 호선·역·도보시간 표시. 도보 10분 이내만 보기.</div></div></div>
+    <div class="feat"><div class="ic">🏢</div><div><div class="ft">단지 세대수 · 대단지 필터</div><div class="fd">최소 세대수로 나홀로 단지를 거르고 대단지만 골라보기.</div></div></div>
+    <div class="feat"><div class="ic">📈</div><div><div class="ft">단지 가격 추세</div><div class="fd">최근 6개월 ㎡당 평균가가 오르는지(▲) 내리는지(▼).</div></div></div>
+    <div class="feat"><div class="ic">📐</div><div><div class="ft">평형 ↔ ㎡ 단위 전환</div><div class="fd">익숙한 평형(25·34평형)으로 바로 검색.</div></div></div>
+    <div class="feat"><div class="ic">📍</div><div><div class="ft">주소 · 네이버 지도/부동산 링크</div><div class="fd">단지 위치와 매물을 새 탭에서 바로 확인.</div></div></div>
+    <div class="feat"><div class="ic">🔗</div><div><div class="ft">결과 공유 · 이미지 저장</div><div class="fd">내 마지노선을 링크나 이미지 한 장으로.</div></div></div>
+    <div class="modal-foot">
+      <label><input type="checkbox" id="wnDont"> 다시 보지 않기</label>
+      <button class="close-btn" id="wnClose">닫기</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -559,6 +593,21 @@ document.getElementById('imgBtn').addEventListener('click',function(){
     setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   },'image/png');
 });
+
+/* ===== 업데이트 안내 모달 (다시 보지 않기 = localStorage) ===== */
+(function whatsNew(){
+  const KEY='ykk_whatsnew_v1';
+  const ov=document.getElementById('whatsnew');
+  try{ if(localStorage.getItem(KEY)) return; }catch(e){}
+  ov.classList.add('show');
+  function close(){
+    try{ if(document.getElementById('wnDont').checked) localStorage.setItem(KEY,'1'); }catch(e){}
+    ov.classList.remove('show');
+  }
+  document.getElementById('wnClose').addEventListener('click',close);
+  ov.addEventListener('click',function(e){ if(e.target===ov) close(); });   // 배경 클릭 시 닫기
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&ov.classList.contains('show')) close(); });
+})();
 
 render();
 </script>
