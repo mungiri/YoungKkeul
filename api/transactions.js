@@ -193,6 +193,18 @@ async function fetchAptBasic(serviceKey, kaptCode) {
   };
 }
 
+// K-apt 단지 상세정보 → { subwayLine(호선), subwayStation(역명), subwayWalk(도보시간 구간) }
+async function fetchAptDetail(serviceKey, kaptCode) {
+  const qs = new URLSearchParams({ serviceKey, kaptCode, _type: 'json' });
+  const parsed = parseApiItems(await (await fetch(`${KAPT_DTL_URL}?${qs.toString()}`)).text());
+  const it = parsed.items[0] || {};
+  return {
+    subwayLine: (it.subwayLine || '').trim() || null,
+    subwayStation: (it.subwayStation || '').trim() || null,
+    subwayWalk: (it.kaptdWtimesub || '').trim() || null,
+  };
+}
+
 // 실거래 단지 ↔ K-apt 단지 매칭 (반드시 같은 법정동 안에서만 — 오매칭 방지)
 function matchKapt(kaptList, apt, dong) {
   const na = normName(apt);
@@ -293,27 +305,27 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null, _dtl = null;
+    let householdsAvailable = true, householdsNote = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
-      let firstK = null;
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
         if (!k) { c.households = null; return; }
-        if (!firstK) firstK = k.kaptCode;
         c.matchedName = k.kaptName;
         try {
-          const info = await fetchAptBasic(serviceKey, k.kaptCode);
+          const [info, dtl] = await Promise.all([
+            fetchAptBasic(serviceKey, k.kaptCode),
+            fetchAptDetail(serviceKey, k.kaptCode),
+          ]);
           c.households = info.households;
           c.dongCount = info.dongCount;
           c.roadAddr = info.roadAddr;
           c.addr = info.addr;
+          c.subwayLine = dtl.subwayLine;
+          c.subwayStation = dtl.subwayStation;
+          c.subwayWalk = dtl.subwayWalk;
         } catch { c.households = null; }
       }));
-      if (q.debug && firstK) {
-        const qd = new URLSearchParams({ serviceKey, kaptCode: firstK, _type: 'json' });
-        _dtl = { kaptCode: firstK, raw: (await (await fetch(`${KAPT_DTL_URL}?${qd.toString()}`)).text()).slice(0, 1800) };
-      }
     } catch (e) {
       householdsAvailable = false;
       const forbidden = /forbidden/i.test(e.message || '');
@@ -334,7 +346,6 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
-      _dtl,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });

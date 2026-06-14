@@ -193,6 +193,9 @@
       <button class="toggle-btn" data-m2min="78" data-m2max="88" data-pymin="33" data-pymax="35">34평형(84㎡)</button>
       <button class="toggle-btn" data-m2min="95" data-m2max="120" data-pymin="39" data-pymax="50">40평형↑</button>
     </div>
+    <div class="toggle-row" style="margin-bottom:14px;">
+      <button class="toggle-btn" id="stationFilter">🚇 역세권(도보 10분 이내)만</button>
+    </div>
     <button id="searchBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 예산으로 살 수 있는 단지 보기</button>
     <div id="searchStatus" class="hint" style="margin-top:10px;"></div>
     <div id="complexList" style="margin-top:8px;"></div>
@@ -400,18 +403,26 @@ async function searchComplexes(){
     const data=await res.json();
     if(!res.ok){status.textContent='조회 실패: '+(data.error||res.status)+(data.hint?' — '+data.hint:'');return;}
     if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 평균가 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
-    let head=`${gu} · 최근 ${data.months.length}개월 · 평균 거래가 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
+    // 역세권(도보 10분 이내) 판정 + 필터
+    const near=w=>!!w&&(w.startsWith('5분')||w.startsWith('5~10분'));
+    let comps=data.complexes;
+    if(stationOnly) comps=comps.filter(c=>near(c.subwayWalk));
+    if(!comps.length){status.textContent=`${gu} · 평균가 ${won(lastPrice)} 이하 중 역세권(도보 10분) 단지가 없습니다. 필터를 꺼보세요.`;return;}
+    let head=`${gu} · 최근 ${data.months.length}개월 · 평균 거래가 ${won(lastPrice)} 이하 단지 ${comps.length}곳 (실거래 ${data.totalDeals}건 기준)`;
+    if(stationOnly) head+=' · 🚇 역세권만';
     if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
     status.textContent=head;
     if(data.householdsNote){const n=document.createElement('div');n.className='hint';n.style.cssText='color:var(--red);margin:6px 0 2px;line-height:1.5;';n.textContent='ⓘ '+data.householdsNote;list.appendChild(n);}
-    if(data.householdsAvailable!==false){const small=data.complexes.filter(c=>c.households==null).length;if(small){const lg=document.createElement('div');lg.className='hint';lg.style.cssText='color:var(--dim);margin:4px 0 2px;line-height:1.5;';lg.innerHTML=`ⓘ "<span style="color:var(--sub)">소규모 추정</span>" = K-apt 의무관리대상(대체로 150세대↑)에 없는 단지 (나홀로·도시형생활주택 등). 이번 결과 ${small}곳.`;list.appendChild(lg);}}
-    data.complexes.forEach(c=>{
+    if(data.householdsAvailable!==false){const small=comps.filter(c=>c.households==null).length;if(small){const lg=document.createElement('div');lg.className='hint';lg.style.cssText='color:var(--dim);margin:4px 0 2px;line-height:1.5;';lg.innerHTML=`ⓘ "<span style="color:var(--sub)">소규모 추정</span>" = K-apt 의무관리대상(대체로 150세대↑)에 없는 단지 (나홀로·도시형생활주택 등). 이번 결과 ${small}곳.`;list.appendChild(lg);}}
+    comps.forEach(c=>{
       const row=document.createElement('div'); row.className='check-row';
       const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);
       const areas=c.affordableAreas.length?`${aMin.toFixed(0)}~${aMax.toFixed(0)}㎡ (${pyRange(aMin,aMax)})`:'-';
       const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'<span style="color:var(--dim)">소규모 추정</span>';
       // 가격 추세 배지 (㎡당 전·후반 변화율). 매수자 관점: 하락=진입유리(초록), 상승=주의(레드)
       const tr=(c.trend!=null)?` · <span title="최근 6개월 ㎡당 평균가 전·후반 변화(매수자 관점: 하락=초록)" style="color:${c.trend>0?'var(--red)':(c.trend<0?'var(--green)':'var(--sub)')}">${c.trend>0?'▲':(c.trend<0?'▼':'–')}${Math.abs(c.trend)}%</span>`:'';
+      // 역세권 배지 (지하철 호선·역·도보시간). 도보 10분 이내면 강조.
+      const sub=c.subwayStation?`<div class="check-detail" style="margin-top:3px;">🚇 <span style="color:${near(c.subwayWalk)?'var(--gold)':'var(--dim)'};font-weight:${near(c.subwayWalk)?'600':'400'};">${c.subwayLine?c.subwayLine+' ':''}${c.subwayStation}역${c.subwayWalk?' · '+c.subwayWalk:''}${near(c.subwayWalk)?' · 역세권':''}</span></div>`:'';
       // 주소 + 위치/매물 링크 (도로명주소 우선, 없으면 구·동·지번)
       const addr=c.roadAddr||`${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`;
       const mapQ=encodeURIComponent(c.roadAddr||`${gu} ${c.dong} ${c.apt}`);
@@ -426,12 +437,17 @@ async function searchComplexes(){
           <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
           <div class="check-detail">평균 <b style="color:var(--gold)">${won(c.avgPrice)}</b> · 최저 ${won(c.minPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건${tr}</div>
           <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
+          ${sub}
           <div class="check-detail" style="margin-top:4px;">📍 <span style="color:var(--dim)">${addr}</span> · ${links}</div>
         </div>`;
       list.appendChild(row);
     });
   }catch(e){status.textContent='네트워크 오류: '+e.message;}
 }
+let stationOnly=false;
+document.getElementById('stationFilter').addEventListener('click',function(){
+  stationOnly=!stationOnly; this.classList.toggle('on',stationOnly);
+});
 document.getElementById('searchBtn').addEventListener('click',searchComplexes);
 
 /* 면적 입력 단위(㎡ ↔ 평형) + 라이브 환산 + 프리셋 */
