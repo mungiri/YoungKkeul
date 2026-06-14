@@ -232,7 +232,7 @@ module.exports = async function handler(req, res) {
       const key = `${d.dong}·${d.apt}`;
       if (!byComplex.has(key)) {
         byComplex.set(key, {
-          apt: d.apt, dong: d.dong, buildYear: d.buildYear,
+          apt: d.apt, dong: d.dong, jibun: d.jibun, buildYear: d.buildYear,
           deals: [], minPrice: Infinity, maxPrice: 0, sumPrice: 0,
           recentDate: '', recentPrice: 0,
         });
@@ -250,6 +250,7 @@ module.exports = async function handler(req, res) {
       .map((c) => ({
         apt: c.apt,
         dong: c.dong,
+        jibun: c.jibun,
         buildYear: c.buildYear,
         dealCount: c.deals.length,
         minPrice: c.minPrice,
@@ -267,11 +268,13 @@ module.exports = async function handler(req, res) {
       .slice(0, limit);
 
     // 세대수 enrichment (K-apt) — best-effort. 실패/미신청 시 세대수만 비활성, 나머지는 정상.
-    let householdsAvailable = true, householdsNote = null;
+    let householdsAvailable = true, householdsNote = null, _diag = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
+      if (q.debug) _diag = [];
       await Promise.all(complexes.map(async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
+        if (q.debug) _diag.push({ apt: c.apt, dong: c.dong, jibun: c.jibun, matched: k ? k.kaptName : null, sameDongKapt: kaptList.filter((x) => x.dong === c.dong).map((x) => x.kaptName) });
         if (!k) { c.households = null; return; }
         c.matchedName = k.kaptName;
         try {
@@ -299,6 +302,7 @@ module.exports = async function handler(req, res) {
       complexCount: complexes.length,
       householdsAvailable,
       householdsNote,
+      _diag,
       complexes,
       disclaimer: '국토교통부 실거래가(과거 거래 기록)이며 현재 호가/매물이 아닙니다. 신고 지연으로 최근 거래가 누락될 수 있습니다. 세대수는 K-apt 공동주택 기본정보 기준이며 단지명 매칭 실패 시 미확인으로 표기됩니다.',
     });
