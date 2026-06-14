@@ -273,6 +273,15 @@ module.exports = async function handler(req, res) {
           c.dongCount = info.dongCount;
         } catch { c.households = null; }
       }));
+      if (q.debug && _debug) {
+        const fm = _debug.matches.find((m) => m.kaptCode);
+        if (fm) {
+          const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
+          _debug.basicSampleJson = (await (await fetch(`${KAPT_INFO_URL}?${qd.toString()}`)).text()).slice(0, 900);
+          const qx = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode });
+          _debug.basicSampleDefault = (await (await fetch(`${KAPT_INFO_URL}?${qx.toString()}`)).text()).slice(0, 900);
+        }
+      }
     } catch (e) {
       householdsAvailable = false;
       const forbidden = /forbidden/i.test(e.message || '');
