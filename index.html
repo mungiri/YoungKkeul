@@ -12,6 +12,8 @@
     --red:#E5534B; --track:#1F2630;
   }
   *{box-sizing:border-box;}
+  select{color-scheme:dark;}
+  #gu option{background:var(--panel); color:var(--ink);}
   body{
     margin:0; background:var(--bg); color:var(--ink);
     font-family:'Inter',system-ui,sans-serif; padding:32px 20px;
@@ -375,6 +377,7 @@ async function searchComplexes(){
     let head=`${gu} · 최근 ${data.months.length}개월 · 예산 ${won(lastPrice)} 이하 단지 ${data.complexCount}곳 (실거래 ${data.totalDeals}건 기준)`;
     if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
     status.textContent=head;
+    if(data.householdsNote){const n=document.createElement('div');n.className='hint';n.style.cssText='color:var(--red);margin:6px 0 2px;line-height:1.5;';n.textContent='ⓘ '+data.householdsNote;list.appendChild(n);}
     data.complexes.forEach(c=>{
       const row=document.createElement('div'); row.className='check-row';
       const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);

@@ -115,30 +115,53 @@ function normName(s) {
     .toLowerCase();
 }
 
+// data.go.kr 응답(JSON 또는 XML) 공용 파서 → { items, error, code }
+//  - K-apt V3 서비스는 기본 응답이 JSON, 실거래가는 XML, 인증오류는 XML(cmmMsgHeader)로 와서 둘 다 처리.
+function parseApiItems(text) {
+  const t = (text || '').trim();
+  if (t[0] === '{' || t[0] === '[') {
+    let j;
+    try { j = JSON.parse(t); } catch { return { error: 'JSON 파싱 실패', items: [] }; }
+    const resp = j.response || j;
+    const code = resp.header && resp.header.resultCode;
+    if (code && code !== '00' && code !== '000') {
+      return { error: (resp.header && resp.header.resultMsg) || 'API error', code, items: [] };
+    }
+    const body = resp.body || {};
+    let items = (body.items && body.items.item) || body.item || (body.items) || [];
+    if (!items || typeof items === 'string') items = [];
+    return { items: Array.isArray(items) ? items : [items] };
+  }
+  // XML
+  const code = tag(t, 'resultCode') || tag(t, 'returnReasonCode');
+  if (code && code !== '000' && code !== '00') {
+    return { error: tag(t, 'resultMsg') || tag(t, 'returnAuthMsg') || 'API error', code, items: [] };
+  }
+  const items = (t.match(/<item>[\s\S]*?<\/item>/g) || []).map((b) => {
+    const o = {};
+    for (const pair of b.match(/<(\w+)>([^<]*)<\/\1>/g) || []) {
+      const mm = pair.match(/<(\w+)>([^<]*)<\/\1>/);
+      o[mm[1]] = mm[2].trim();
+    }
+    return o;
+  });
+  return { items };
+}
+
 // K-apt 시군구 단지목록 → [{kaptCode, kaptName, dong(as3)}]
 async function fetchSigunguApts(serviceKey, sigunguCode) {
-  const qs = new URLSearchParams({ serviceKey, sigunguCode, pageNo: '1', numOfRows: '2000' });
-  const xml = await (await fetch(`${KAPT_LIST_URL}?${qs.toString()}`)).text();
-  const code = tag(xml, 'resultCode') || tag(xml, 'returnReasonCode');
-  if (code && code !== '000' && code !== '00') {
-    const e = new Error(tag(xml, 'resultMsg') || tag(xml, 'returnAuthMsg') || 'K-apt list error');
-    e.code = code; throw e;
-  }
-  return (xml.match(/<item>[\s\S]*?<\/item>/g) || []).map((b) => ({
-    kaptCode: tag(b, 'kaptCode'),
-    kaptName: tag(b, 'kaptName'),
-    dong: tag(b, 'as3'),
-  }));
+  const qs = new URLSearchParams({ serviceKey, sigunguCode, pageNo: '1', numOfRows: '3000', _type: 'json' });
+  const parsed = parseApiItems(await (await fetch(`${KAPT_LIST_URL}?${qs.toString()}`)).text());
+  if (parsed.error) { const e = new Error(parsed.error); e.code = parsed.code; throw e; }
+  return parsed.items.map((it) => ({ kaptCode: it.kaptCode, kaptName: it.kaptName, dong: it.as3 }));
 }
 
 // K-apt 단지 기본정보 → { households(세대수), dongCount(동수) }
 async function fetchAptBasic(serviceKey, kaptCode) {
-  const qs = new URLSearchParams({ serviceKey, kaptCode });
-  const xml = await (await fetch(`${KAPT_INFO_URL}?${qs.toString()}`)).text();
-  return {
-    households: Number(tag(xml, 'kaptdaCnt')) || null,
-    dongCount: Number(tag(xml, 'kaptDongCnt')) || null,
-  };
+  const qs = new URLSearchParams({ serviceKey, kaptCode, _type: 'json' });
+  const parsed = parseApiItems(await (await fetch(`${KAPT_INFO_URL}?${qs.toString()}`)).text());
+  const it = parsed.items[0] || {};
+  return { households: Number(it.kaptdaCnt) || null, dongCount: Number(it.kaptDongCnt) || null };
 }
 
 // 실거래 단지 ↔ K-apt 단지 매칭 (같은 법정동 우선 + 정규화 이름 일치/포함)
