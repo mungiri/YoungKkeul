@@ -120,6 +120,19 @@ function normName(s) {
 //        단독 '동'/'구역'은 브랜드명 보존 위해 남김(예: 동부센트레빌).
 const coreName = (s) => normName(s).replace(/\d+(차|동|단지|구역|지구)?/g, '').replace(/차|지구/g, '');
 
+// 가격 추세: 거래를 날짜순 정렬해 전반/후반 ㎡당 평균가를 비교(%). 데이터 부족 시 null.
+function priceTrend(deals) {
+  const v = deals.filter((d) => d.area > 0).sort((a, b) => a.dealDate.localeCompare(b.dealDate));
+  if (v.length < 2 || v[0].dealDate.slice(0, 7) === v[v.length - 1].dealDate.slice(0, 7)) return null; // 같은 달뿐이면 추세 없음
+  const ppm = (d) => d.priceWon / d.area;
+  const mid = Math.floor(v.length / 2);
+  const older = v.slice(0, mid || 1), newer = v.slice(mid);
+  const avg = (arr) => arr.reduce((s, d) => s + ppm(d), 0) / arr.length;
+  const o = avg(older);
+  if (!o) return null;
+  return Math.round(((avg(newer) - o) / o) * 1000) / 10; // 소수 첫째자리 %
+}
+
 // data.go.kr 응답(JSON 또는 XML) 공용 파서 → { items, error, code }
 //  - K-apt V3 서비스는 기본 응답이 JSON, 실거래가는 XML, 인증오류는 XML(cmmMsgHeader)로 와서 둘 다 처리.
 function parseApiItems(text) {
@@ -267,6 +280,7 @@ module.exports = async function handler(req, res) {
         avgPrice: Math.round(c.sumPrice / c.deals.length),
         recentDate: c.recentDate,
         recentPrice: c.recentPrice,
+        trend: priceTrend(c.deals),   // ㎡당 평균가 전·후반 변화율(%) / null
         // 예산으로 들어갈 수 있는 면적대(예산 이하 거래의 전용면적 범위)
         affordableAreas: c.deals
           .filter((d) => d.priceWon <= maxPrice)

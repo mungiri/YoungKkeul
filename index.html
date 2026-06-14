@@ -387,7 +387,7 @@ async function searchComplexes(){
   const maxArea=areaUnit==='py'?(inMax?pyeongToArea(inMax)+2:9999):(inMax||9999);
   const minHouseholds=parseInt(document.getElementById('minHouseholds').value)||0;
   status.textContent=`${gu} 실거래가 조회 중…`;
-  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),minHouseholds:String(minHouseholds),months:'3'});
+  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),minHouseholds:String(minHouseholds),months:'6'});
   try{
     const res=await fetch(`/api/transactions?${qs.toString()}`);
     const data=await res.json();
@@ -403,6 +403,8 @@ async function searchComplexes(){
       const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);
       const areas=c.affordableAreas.length?`${aMin.toFixed(0)}~${aMax.toFixed(0)}㎡ (${pyRange(aMin,aMax)})`:'-';
       const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'<span style="color:var(--dim)">소규모 추정</span>';
+      // 가격 추세 배지 (㎡당 전·후반 변화율). 매수자 관점: 하락=진입유리(초록), 상승=주의(레드)
+      const tr=(c.trend!=null)?` · <span title="최근 6개월 ㎡당 평균가 전·후반 변화(매수자 관점: 하락=초록)" style="color:${c.trend>0?'var(--red)':(c.trend<0?'var(--green)':'var(--sub)')}">${c.trend>0?'▲':(c.trend<0?'▼':'–')}${Math.abs(c.trend)}%</span>`:'';
       // 주소 + 위치/매물 링크 (도로명주소 우선, 없으면 구·동·지번)
       const addr=c.roadAddr||`${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`;
       const mapQ=encodeURIComponent(c.roadAddr||`${gu} ${c.dong} ${c.apt}`);
@@ -415,7 +417,7 @@ async function searchComplexes(){
       row.innerHTML=`<span class="check-mark ok">✓</span>
         <div style="flex:1;">
           <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
-          <div class="check-detail">평균 <b style="color:var(--gold)">${won(c.avgPrice)}</b> · 최저 ${won(c.minPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건</div>
+          <div class="check-detail">평균 <b style="color:var(--gold)">${won(c.avgPrice)}</b> · 최저 ${won(c.minPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건${tr}</div>
           <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
           <div class="check-detail" style="margin-top:4px;">📍 <span style="color:var(--dim)">${addr}</span> · ${links}</div>
         </div>`;
