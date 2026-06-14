@@ -44,7 +44,7 @@ const MOLIT_URL =
 const KAPT_LIST_URL =
   'https://apis.data.go.kr/1613000/AptListService3/getSigunguAptList3';   // 시군구별 단지목록 → kaptCode
 const KAPT_INFO_URL =
-  'https://apis.data.go.kr/1613000/AptBasisInfoServiceV3/getAphusBassInfoV3'; // 단지 기본정보 → 세대수(kaptdaCnt)
+  'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusBassInfoV4'; // 단지 기본정보 → 세대수(kaptdaCnt). V3는 폐기, V4가 현행(2026)
 
 // 최근 N개월의 YYYYMM 배열 (이번 달 제외 — 당월은 데이터가 거의 없으므로 직전 달부터)
 function recentYearMonths(n) {
@@ -276,23 +276,9 @@ module.exports = async function handler(req, res) {
       if (q.debug && _debug) {
         const fm = _debug.matches.find((m) => m.kaptCode);
         if (fm) {
-          const candidates = [
-            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV3/getAphusBassInfoV3',
-            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV2/getAphusBassInfoV2',
-            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV1/getAphusBassInfoV1',
-            'https://apis.data.go.kr/1613000/AptBasisInfoService3/getAphusBassInfo3',
-            'https://apis.data.go.kr/1613000/AptBasisInfoService/getAphusBassInfo',
-            'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusBassInfoV4',
-          ];
           _debug.kaptCode = fm.kaptCode;
-          _debug.probe = {};
-          for (const url of candidates) {
-            try {
-              const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
-              const txt = await (await fetch(`${url}?${qd.toString()}`)).text();
-              _debug.probe[url.split('/').slice(-2).join('/')] = txt.slice(0, 160).replace(/\s+/g, ' ');
-            } catch (e) { _debug.probe[url] = 'ERR ' + e.message; }
-          }
+          const qd = new URLSearchParams({ serviceKey, kaptCode: fm.kaptCode, _type: 'json' });
+          _debug.basicFull = (await (await fetch(`${KAPT_INFO_URL}?${qd.toString()}`)).text()).slice(0, 1600);
         }
       }
     } catch (e) {
