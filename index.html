@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>영끌컷 · 자력 독립 마지노선 계산기</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  :root{
+    --bg:#0E1116; --panel:#161B22; --line:#262D38; --ink:#E6EDF3;
+    --sub:#8B98A8; --dim:#5C6877; --gold:#E8B341; --green:#3FB68B;
+    --red:#E5534B; --track:#1F2630;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif; padding:32px 20px;
+  }
+  .wrap{max-width:760px; margin:0 auto;}
+  .eyebrow{font-size:12px; letter-spacing:.22em; color:var(--gold); font-weight:600; margin-bottom:8px;}
+  h1{font-size:28px; font-weight:700; margin:0; line-height:1.25;}
+  .lede{color:var(--sub); font-size:14px; margin-top:10px; line-height:1.6;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px 22px; margin-top:20px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 20px;}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+  label.field{display:block; margin-bottom:18px;}
+  .flabel{font-size:12px; letter-spacing:.04em; color:var(--sub); margin-bottom:6px; text-transform:uppercase;}
+  .frow{display:flex; align-items:baseline; border-bottom:1px solid var(--line); padding-bottom:6px;}
+  .frow input{
+    flex:1; background:transparent; border:none; outline:none; color:var(--ink);
+    font-size:26px; font-weight:600; font-family:'IBM Plex Mono',monospace; width:100%;
+  }
+  .frow input::-webkit-inner-spin-button{opacity:.25;}
+  .suffix{color:var(--dim); font-size:13px; margin-left:8px;}
+  .hint{font-size:11px; color:var(--dim); margin-top:5px;}
+  .divider{height:1px; background:var(--line); margin:8px 0 20px;}
+  .toggle-group{margin-bottom:18px;}
+  .toggle-row{display:flex; gap:6px;}
+  .toggle-btn{
+    flex:1; padding:10px 8px; border-radius:8px; cursor:pointer; border:1px solid var(--line);
+    background:transparent; color:var(--sub); font-size:13px; transition:all .15s;
+    font-family:inherit;
+  }
+  .toggle-btn.on{border-color:var(--gold); background:rgba(232,179,65,.10); color:var(--gold); font-weight:600;}
+  .res-label{font-size:12px; letter-spacing:.04em; color:var(--sub); text-transform:uppercase; margin-bottom:4px;}
+  .res-headline{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .res-price{font-size:44px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--gold); line-height:1.1;}
+  .res-meta{font-size:13px; color:var(--sub);}
+  .gauge-track{height:8px; background:var(--track); border-radius:99px; overflow:hidden;}
+  .gauge-fill{height:100%; background:linear-gradient(90deg,var(--green),var(--gold)); border-radius:99px; transition:width .35s ease;}
+  .gauge-cap{display:flex; justify-content:space-between; font-size:11px; color:var(--dim); margin-top:6px;}
+  .stat{background:var(--bg); border-radius:8px; padding:12px;}
+  .stat .k{font-size:11px; color:var(--dim); margin-bottom:5px;}
+  .stat .v{font-size:16px; font-weight:600; font-family:'IBM Plex Mono',monospace;}
+  .binding-box{margin-top:14px; padding:10px 12px; background:var(--bg); border-radius:8px; font-size:12.5px; color:var(--sub); line-height:1.6;}
+  .binding-box b{color:var(--gold);}
+  .check-row{display:flex; align-items:flex-start; gap:12px; padding:11px 0; border-top:1px solid var(--line);}
+  .check-row:first-of-type{border-top:none;}
+  .check-mark{margin-top:1px; width:18px; height:18px; border-radius:99px; flex-shrink:0; display:grid; place-items:center; font-size:11px; font-weight:700;}
+  .check-mark.ok{background:rgba(63,182,139,.15); color:var(--green);}
+  .check-mark.no{background:rgba(229,83,75,.15); color:var(--red);}
+  .check-title{font-size:14px; font-weight:500; color:var(--ink);}
+  .check-detail{font-size:12.5px; color:var(--sub); margin-top:2px;}
+  .disclaimer{font-size:11px; color:var(--dim); line-height:1.6; margin:14px 2px 0;}
+  @media (max-width:560px){
+    .grid2{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;}
+    .res-price{font-size:36px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="eyebrow">영끌컷 · 자력 독립 마지노선</div>
+    <h1>내 자산으로 풀 대출 받으면<br/>어디까지 살 수 있나</h1>
+    <p class="lede">보유 현금과 소득을 넣으면 부대비용까지 제하고 매수 가능한 최대 가격을 역산합니다. 보금자리론(6억 이하)과 일반 주담대를 자동 비교합니다.</p>
+  </div>
+
+  <!-- 입력 패널 -->
+  <div class="panel">
+    <div class="grid2">
+      <label class="field"><div class="flabel">보유 현금</div>
+        <div class="frow"><input id="cash" type="number" step="0.1" value="1.06"><span class="suffix">억원</span></div>
+        <div class="hint">전세보증금 회수분 포함</div></label>
+      <label class="field"><div class="flabel">내 연봉(세전)</div>
+        <div class="frow"><input id="income" type="number" step="100" value="3300"><span class="suffix">만원</span></div></label>
+      <label class="field"><div class="flabel">동거인 합산소득</div>
+        <div class="frow"><input id="coIncome" type="number" step="100" value="0"><span class="suffix">만원</span></div>
+        <div class="hint">배우자·남매 합산 시</div></label>
+      <label class="field"><div class="flabel">나이</div>
+        <div class="frow"><input id="age" type="number" step="1" value="33"><span class="suffix">세</span></div>
+        <div class="hint">체증식은 40세 미만만</div></label>
+      <label class="field"><div class="flabel">기존 주담대 상환</div>
+        <div class="frow"><input id="existingMortgage" type="number" step="100" value="0"><span class="suffix">만원/년</span></div></label>
+      <label class="field"><div class="flabel">기타부채 이자</div>
+        <div class="frow"><input id="otherDebt" type="number" step="50" value="0"><span class="suffix">만원/년</span></div>
+        <div class="hint">신용대출 등</div></label>
+    </div>
+    <div class="divider"></div>
+    <div class="grid2" style="gap:20px;">
+      <div class="toggle-group"><div class="flabel">생애최초 여부</div>
+        <div class="toggle-row" id="firstHome">
+          <button class="toggle-btn on" data-val="true">생애최초</button>
+          <button class="toggle-btn" data-val="false">아니오</button>
+        </div></div>
+      <div class="toggle-group"><div class="flabel">상환 방식</div>
+        <div class="toggle-row" id="repayment">
+          <button class="toggle-btn on" data-val="graduated">체증식</button>
+          <button class="toggle-btn" data-val="equal">원리금균등</button>
+        </div></div>
+    </div>
+  </div>
+
+  <!-- 결과 패널 -->
+  <div class="panel">
+    <div class="res-label">매수 가능 마지노선</div>
+    <div class="res-headline">
+      <div class="res-price" id="outPrice">–</div>
+      <div class="res-meta" id="outMeta"></div>
+    </div>
+    <div style="margin-top:18px; margin-bottom:6px;">
+      <div class="gauge-track"><div class="gauge-fill" id="gauge" style="width:0%"></div></div>
+      <div class="gauge-cap"><span>0</span><span>보금자리론 상한 6억</span></div>
+    </div>
+    <div class="grid3" style="margin-top:18px;">
+      <div class="stat"><div class="k">대출액</div><div class="v" id="outLoan" style="color:var(--ink)">–</div></div>
+      <div class="stat"><div class="k">필요 현금</div><div class="v" id="outReqCash" style="color:var(--ink)">–</div></div>
+      <div class="stat"><div class="k" id="outPayLabel">월 납입</div><div class="v" id="outPay" style="color:var(--green)">–</div></div>
+    </div>
+    <div class="binding-box" id="outBinding"></div>
+  </div>
+
+  <!-- 자격 체크 -->
+  <div class="panel">
+    <div class="res-label" style="margin-bottom:14px;">대출 자격 체크</div>
+    <div id="checks"></div>
+  </div>
+
+  <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 저장되지 않습니다.</p>
+</div>
+
+<script>
+/* ===== 규제 파라미터 (2026.6) ===== */
+const REG={
+  LTV_FIRST:0.7, LTV_GENERAL:0.4, BOGEUM_LIMIT_FIRST:4.2e8, BOGEUM_LIMIT_NORMAL:3.6e8,
+  BOGEUM_PRICE_CEIL:6e8, BOGEUM_INCOME_CEIL:7e7, BOGEUM_RATE:0.042,
+  DTI_BASE:0.6, DSR_BANK:0.4, STRESS_METRO:0.03, GEN_RATE:0.045,
+  GRAD_GROWTH:0.0009, GRAD_MAX_YEARS:40, GRAD_AGE_LIMIT:40, DTI_GRAD_AVG_YEARS:10,
+  ACQ_TAX:0.012, BROKER:0.005, MISC:1e6, CAP_TIER1:6e8, CAP_TIER2:4e8, CAP_TIER3:2e8,
+};
+
+/* ===== 금융 계산 ===== */
+const annuityPrincipal=(a,r,y)=>r<=0?a*y:a*((1-Math.pow(1+r,-y))/r);
+function equalMonthly(loan,rate,years){const r=rate/12,n=years*12;return r<=0?loan/n:(loan*r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);}
+function graduated(loan,rate,years,g){
+  const r=rate/12,n=years*12; let gf=0;
+  for(let k=1;k<=n;k++) gf+=Math.pow(1+g,k-1)*Math.pow(1+r,n-k);
+  const p0=loan*Math.pow(1+r,n)/gf;
+  const first=p0, last=p0*Math.pow(1+g,n-1);
+  let s=0; for(let m=1;m<=REG.DTI_GRAD_AVG_YEARS*12;m++) s+=p0*Math.pow(1+g,m-1);
+  return {first,last,avg10Annual:s/REG.DTI_GRAD_AVG_YEARS};
+}
+const amountCap=p=>p<=15e8?REG.CAP_TIER1:(p<=25e8?REG.CAP_TIER2:REG.CAP_TIER3);
+const requiredCash=(p,l)=>p-l+p*REG.ACQ_TAX+p*REG.BROKER+REG.MISC;
+
+function maxLoanAt(price,u){
+  const income=u.income+u.coIncome;
+  const bogeumOk=price<=REG.BOGEUM_PRICE_CEIL && income<=REG.BOGEUM_INCOME_CEIL;
+  if(bogeumOk){
+    const ltv=price*REG.LTV_FIRST;
+    const cap=u.firstHome?REG.BOGEUM_LIMIT_FIRST:REG.BOGEUM_LIMIT_NORMAL;
+    const useGrad=u.repayment==='graduated'&&u.age<REG.GRAD_AGE_LIMIT;
+    const term=useGrad?REG.GRAD_MAX_YEARS:50;
+    const budget=income*REG.DTI_BASE-u.existingMortgage-u.otherInterest;
+    let dti=0;
+    if(budget>0){let lo=0,hi=20e8;
+      while(hi-lo>1e4){const mid=(lo+hi)/2;
+        const ap=useGrad?graduated(mid,REG.BOGEUM_RATE,term,REG.GRAD_GROWTH).avg10Annual:equalMonthly(mid,REG.BOGEUM_RATE,term)*12;
+        if(ap<=budget)lo=mid;else hi=mid;}
+      dti=lo;}
+    const limits=[{name:'LTV 70%',val:ltv},
+      {name:u.firstHome?'보금자리론 한도(4.2억)':'보금자리론 한도(3.6억)',val:cap},
+      {name:'DTI',val:dti}];
+    const b=limits.reduce((a,c)=>a.val<c.val?a:c);
+    return {loan:Math.floor(b.val),binding:b.name,product:'보금자리론',term,useGrad};
+  } else {
+    const ltvRate=u.firstHome?REG.LTV_FIRST:REG.LTV_GENERAL;
+    const ltv=price*ltvRate, cap=amountCap(price), stress=REG.GEN_RATE+REG.STRESS_METRO;
+    const budget=income*REG.DSR_BANK-u.existingMortgage-u.otherPayment;
+    const dsr=budget>0?annuityPrincipal(budget,stress,30):0;
+    const limits=[{name:`LTV ${Math.round(ltvRate*100)}%`,val:ltv},
+      {name:'금액 캡',val:cap},{name:'스트레스 DSR',val:dsr}];
+    const b=limits.reduce((a,c)=>a.val<c.val?a:c);
+    return {loan:Math.floor(b.val),binding:b.name,product:'일반 주담대',term:30,useGrad:false};
+  }
+}
+
+function maxAffordable(u){
+  let lo=0,hi=30e8;
+  for(let i=0;i<60;i++){const mid=(lo+hi)/2;const{loan}=maxLoanAt(mid,u);
+    if(requiredCash(mid,loan)<=u.cash)lo=mid;else hi=mid;}
+  const price=Math.floor(lo/1e5)*1e5;
+  const info=maxLoanAt(price,u);
+  const reqCash=requiredCash(price,info.loan);
+  let monthly;
+  if(info.useGrad){const g=graduated(info.loan,REG.BOGEUM_RATE,info.term,REG.GRAD_GROWTH);
+    monthly={mode:'grad',first:g.first,last:g.last};}
+  else{const rate=info.product==='보금자리론'?REG.BOGEUM_RATE:REG.GEN_RATE;
+    monthly={mode:'equal',pay:equalMonthly(info.loan,rate,info.term)};}
+  return {price,...info,reqCash,cashLeft:u.cash-reqCash,monthly};
+}
+
+function eligibility(u){
+  const income=u.income+u.coIncome; const checks=[];
+  checks.push(income>REG.BOGEUM_INCOME_CEIL
+    ?{ok:false,label:'보금자리론 소득요건',detail:`합산 ${won(income)} > 7천만 (신혼·자녀 시 완화)`}
+    :{ok:true,label:'보금자리론 소득요건',detail:`합산 ${won(income)} ≤ 7천만 충족`});
+  if(u.repayment==='graduated')
+    checks.push(u.age<REG.GRAD_AGE_LIMIT
+      ?{ok:true,label:'체증식 자격',detail:`만 ${u.age}세 — 40세 미만 충족 (40년 만기)`}
+      :{ok:false,label:'체증식 자격',detail:`만 ${u.age}세 — 40세 미만 아님 → 균등 전환`});
+  checks.push(u.firstHome
+    ?{ok:true,label:'생애최초',detail:'LTV 70%·한도 4.2억·DTI 차감 면제'}
+    :{ok:false,label:'생애최초',detail:'미해당 → LTV 40%·한도 3.6억'});
+  return checks;
+}
+
+function won(n){
+  const neg=n<0; n=Math.abs(Math.round(n));
+  const eok=Math.floor(n/1e8), man=Math.floor((n%1e8)/1e4);
+  let s=''; if(eok)s+=`${eok}억`; if(man)s+=`${eok?' ':''}${man.toLocaleString()}만`;
+  if(!s)s='0'; return (neg?'-':'')+s+'원';
+}
+
+/* ===== 상태 + 렌더 ===== */
+const state={firstHome:true, repayment:'graduated'};
+function readInputs(){
+  const g=id=>parseFloat(document.getElementById(id).value)||0;
+  return {
+    cash:g('cash')*1e8, income:g('income')*1e4, coIncome:g('coIncome')*1e4,
+    age:g('age'), firstHome:state.firstHome, repayment:state.repayment,
+    existingMortgage:g('existingMortgage')*1e4,
+    otherInterest:g('otherDebt')*1e4, otherPayment:g('otherDebt')*1e4,
+  };
+}
+function render(){
+  const u=readInputs();
+  const r=maxAffordable(u);
+  document.getElementById('outPrice').textContent=won(r.price);
+  document.getElementById('outMeta').textContent=`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`;
+  document.getElementById('gauge').style.width=Math.min(100,(r.price/6e8)*100)+'%';
+  document.getElementById('outLoan').textContent=won(r.loan);
+  document.getElementById('outReqCash').textContent=won(r.reqCash);
+  document.getElementById('outPayLabel').textContent=r.monthly.mode==='grad'?'월납입(1회차)':'월 납입';
+  document.getElementById('outPay').textContent=r.monthly.mode==='grad'?won(r.monthly.first):won(r.monthly.pay);
+  let bind=`한도를 결정한 제약: <b>${r.binding}</b>`;
+  if(r.monthly.mode==='grad') bind+=` · 체증식이라 만기엔 월 ${won(r.monthly.last)}까지 증가`;
+  document.getElementById('outBinding').innerHTML=bind;
+
+  const cw=document.getElementById('checks'); cw.innerHTML='';
+  eligibility(u).forEach(c=>{
+    const row=document.createElement('div'); row.className='check-row';
+    row.innerHTML=`<span class="check-mark ${c.ok?'ok':'no'}">${c.ok?'✓':'!'}</span>
+      <div><div class="check-title">${c.label}</div><div class="check-detail">${c.detail}</div></div>`;
+    cw.appendChild(row);
+  });
+}
+
+/* 이벤트 바인딩 */
+['cash','income','coIncome','age','existingMortgage','otherDebt'].forEach(id=>
+  document.getElementById(id).addEventListener('input',render));
+['firstHome','repayment'].forEach(group=>{
+  document.getElementById(group).querySelectorAll('.toggle-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.getElementById(group).querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      let v=btn.dataset.val; if(v==='true')v=true; else if(v==='false')v=false;
+      state[group]=v; render();
+    });
+  });
+});
+render();
+</script>
+</body>
+</html>
