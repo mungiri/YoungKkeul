@@ -48,6 +48,29 @@ const KAPT_INFO_URL =
 const KAPT_DTL_URL =
   'https://apis.data.go.kr/1613000/AptBasisInfoServiceV4/getAphusDtlInfoV4'; // 단지 상세정보 → 지하철 호선/역/도보시간 등
 
+// Vercel 함수 최대 실행시간(초) — 업스트림 지연 대비 여유
+const config = { maxDuration: 30 };
+module.exports.config = config;
+
+// 타임아웃 있는 fetch: 업스트림(data.go.kr)이 느려도 함수가 행에 걸리지 않도록.
+async function timedFetch(url, ms) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { signal: ac.signal }); }
+  finally { clearTimeout(t); }
+}
+
+// 동시 실행 개수 제한 map (data.go.kr 동시호출 폭주로 인한 throttle/행 방지)
+async function mapLimit(items, limit, fn) {
+  const ret = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; ret[idx] = await fn(items[idx], idx); }
+  });
+  await Promise.all(workers);
+  return ret;
+}
+
 // 최근 N개월의 YYYYMM 배열 (이번 달 제외 — 당월은 데이터가 거의 없으므로 직전 달부터)
 function recentYearMonths(n) {
   const out = [];
@@ -76,7 +99,7 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
     pageNo: '1',
     numOfRows: '1000',
   });
-  const res = await fetch(`${MOLIT_URL}?${qs.toString()}`);
+  const res = await timedFetch(`${MOLIT_URL}?${qs.toString()}`, 7000);
   const xml = await res.text();
 
   // API 레벨 에러(키 미승인/한도초과 등) 감지
@@ -175,7 +198,7 @@ function parseApiItems(text) {
 // K-apt 시군구 단지목록 → [{kaptCode, kaptName, dong(as3)}]
 async function fetchSigunguApts(serviceKey, sigunguCode) {
   const qs = new URLSearchParams({ serviceKey, sigunguCode, pageNo: '1', numOfRows: '3000', _type: 'json' });
-  const parsed = parseApiItems(await (await fetch(`${KAPT_LIST_URL}?${qs.toString()}`)).text());
+  const parsed = parseApiItems(await (await timedFetch(`${KAPT_LIST_URL}?${qs.toString()}`, 6000)).text());
   if (parsed.error) { const e = new Error(parsed.error); e.code = parsed.code; throw e; }
   return parsed.items.map((it) => ({ kaptCode: it.kaptCode, kaptName: it.kaptName, dong: it.as3 }));
 }
@@ -183,7 +206,7 @@ async function fetchSigunguApts(serviceKey, sigunguCode) {
 // K-apt 단지 기본정보 → { households(세대수), dongCount(동수), roadAddr(도로명), addr(지번) }
 async function fetchAptBasic(serviceKey, kaptCode) {
   const qs = new URLSearchParams({ serviceKey, kaptCode, _type: 'json' });
-  const parsed = parseApiItems(await (await fetch(`${KAPT_INFO_URL}?${qs.toString()}`)).text());
+  const parsed = parseApiItems(await (await timedFetch(`${KAPT_INFO_URL}?${qs.toString()}`, 4500)).text());
   const it = parsed.items[0] || {};
   return {
     households: Number(it.kaptdaCnt) || null,
@@ -196,7 +219,7 @@ async function fetchAptBasic(serviceKey, kaptCode) {
 // K-apt 단지 상세정보 → { subwayLine(호선), subwayStation(역명), subwayWalk(도보시간 구간) }
 async function fetchAptDetail(serviceKey, kaptCode) {
   const qs = new URLSearchParams({ serviceKey, kaptCode, _type: 'json' });
-  const parsed = parseApiItems(await (await fetch(`${KAPT_DTL_URL}?${qs.toString()}`)).text());
+  const parsed = parseApiItems(await (await timedFetch(`${KAPT_DTL_URL}?${qs.toString()}`, 4500)).text());
   const it = parsed.items[0] || {};
   return {
     subwayLine: (it.subwayLine || '').trim() || null,
@@ -254,10 +277,17 @@ module.exports = async function handler(req, res) {
     const limit = Math.min(Math.max(Number(q.limit) || 30, 1), 100);
     const minHouseholds = Number(q.minHouseholds) || 0;
 
-    // 최근 N개월 병렬 조회
+    // 최근 N개월 병렬 조회 (일부 달이 느리거나 실패해도 나머지로 진행)
     const yms = recentYearMonths(months);
-    const monthly = await Promise.all(yms.map((ym) => fetchMonth(serviceKey, lawdCd, ym)));
-    let deals = monthly.flat();
+    const settled = await Promise.allSettled(yms.map((ym) => fetchMonth(serviceKey, lawdCd, ym)));
+    const okMonths = settled.filter((s) => s.status === 'fulfilled');
+    if (!okMonths.length) {
+      const reason = settled.find((s) => s.status === 'rejected');
+      const msg = reason && reason.reason && reason.reason.message || '응답 지연';
+      res.status(504).json({ error: `국토부 실거래가 조회 실패(${msg}). 잠시 후 다시 시도해주세요.` });
+      return;
+    }
+    let deals = okMonths.flatMap((s) => s.value);
 
     // 면적 필터
     deals = deals.filter((d) => d.area >= minArea && d.area <= maxArea);
@@ -308,7 +338,7 @@ module.exports = async function handler(req, res) {
     let householdsAvailable = true, householdsNote = null;
     try {
       const kaptList = await fetchSigunguApts(serviceKey, lawdCd);
-      await Promise.all(complexes.map(async (c) => {
+      await mapLimit(complexes, 6, async (c) => {
         const k = matchKapt(kaptList, c.apt, c.dong);
         if (!k) { c.households = null; return; }
         c.matchedName = k.kaptName;
@@ -325,7 +355,7 @@ module.exports = async function handler(req, res) {
           c.subwayStation = dtl.subwayStation;
           c.subwayWalk = dtl.subwayWalk;
         } catch { c.households = null; }
-      }));
+      });
     } catch (e) {
       householdsAvailable = false;
       const forbidden = /forbidden/i.test(e.message || '');
