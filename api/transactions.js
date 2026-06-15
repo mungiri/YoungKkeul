@@ -99,7 +99,7 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
     pageNo: '1',
     numOfRows: '1000',
   });
-  const res = await timedFetch(`${MOLIT_URL}?${qs.toString()}`, 7000);
+  const res = await timedFetch(`${MOLIT_URL}?${qs.toString()}`, 12000);
   const xml = await res.text();
 
   // API 레벨 에러(키 미승인/한도초과 등) 감지
