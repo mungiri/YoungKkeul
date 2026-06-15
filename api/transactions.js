@@ -283,8 +283,12 @@ module.exports = async function handler(req, res) {
     const okMonths = settled.filter((s) => s.status === 'fulfilled');
     if (!okMonths.length) {
       const reason = settled.find((s) => s.status === 'rejected');
-      const msg = reason && reason.reason && reason.reason.message || '응답 지연';
-      res.status(504).json({ error: `국토부 실거래가 조회 실패(${msg}). 잠시 후 다시 시도해주세요.` });
+      const aborted = reason && reason.reason && reason.reason.name === 'AbortError';
+      res.status(504).json({
+        error: aborted
+          ? '국토부 실거래가 서버가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해주세요.'
+          : `국토부 실거래가 조회 실패: ${(reason && reason.reason && reason.reason.message) || '알 수 없는 오류'}`,
+      });
       return;
     }
     let deals = okMonths.flatMap((s) => s.value);
