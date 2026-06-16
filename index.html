@@ -116,6 +116,8 @@
   .zone-card:first-of-type{border-top:none;}
   .zone-name{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.2px;}
   .zone-meta{font-size:13px; color:var(--sub); margin-top:4px; line-height:1.5; display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+  .zone-meta a{color:var(--gold); font-weight:600; text-decoration:none;}
+  .zone-meta a:active{opacity:.6;}
   .zone-badge{display:inline-block; padding:2px 9px; border-radius:9999px; font-size:12px; font-weight:600; color:#fff;}
   .iw{padding:10px 12px; font-family:-apple-system,'Inter',system-ui,sans-serif; max-width:230px;}
   .iw .n{font-size:14px; font-weight:600; color:#1d1d1f; margin-bottom:4px; line-height:1.35;}
@@ -795,8 +797,10 @@ function renderZones(){
     const div=document.createElement('div'); div.className='zone-card';
     div.innerHTML=`<div class="zone-name">${z.name}</div>
       <div class="zone-meta"><span>${z.type||''}${z.address?' · '+z.address:''}</span>
-        <span class="zone-badge" style="background:${c}">${z.stageText||z.stageLabel||''}</span></div>`;
-    div.addEventListener('click',()=>{
+        <span class="zone-badge" style="background:${c}">${z.stageText||z.stageLabel||''}</span></div>
+      <div class="zone-meta" style="margin-top:6px">${zoneLinks(z)}</div>`;
+    div.addEventListener('click',(e)=>{
+      if(e.target.closest('a')) return;   // 링크 클릭은 지도 이동 대신 링크로
       if(z.lat&&z.lng){ mapObj.setLevel(4); mapObj.panTo(new kakao.maps.LatLng(z.lat,z.lng));
         const mk=mapMarkers.find(m=>m._zone===z); if(mk) openInfo(mk,z); }
     });
@@ -804,12 +808,20 @@ function renderZones(){
   });
 }
 
+// 보장형 외부 링크: 정보몽땅 상세(정비사업 정보) + 네이버 지도 위치
+function zoneLinks(z){
+  const mapQ=encodeURIComponent(`서울 ${z.gu||''} ${z.address||''}`.trim());
+  const parts=[];
+  if(z.detailUrl) parts.push(`<a href="${z.detailUrl}" target="_blank" rel="noopener">🏗️ 정비사업 상세 ↗</a>`);
+  parts.push(`<a href="https://map.naver.com/p/search/${mapQ}" target="_blank" rel="noopener">📍 지도에서 위치 ↗</a>`);
+  return parts.join(' · ');
+}
+
 function openInfo(marker,z){
   const c=STAGE_COLOR[z.stage]||STAGE_COLOR.unknown;
-  const link=z.detailUrl?`<a href="${z.detailUrl}" target="_blank" rel="noopener">상세 보기 ↗</a>`:'';
   mapInfo.setContent(`<div class="iw"><div class="n">${z.name}</div>
     <div class="m">${z.type||''}<br/><span style="color:${c};font-weight:600">${z.stageText||z.stageLabel||''}</span>${z.address?' · '+z.address:''}</div>
-    <div style="margin-top:6px">${link}</div></div>`);
+    <div style="margin-top:6px; line-height:1.8">${zoneLinks(z)}</div></div>`);
   mapInfo.open(mapObj,marker);
 }
 
