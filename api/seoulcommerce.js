@@ -1,27 +1,33 @@
 /**
  * 영끌컷 · 서울 상권분석 오버레이 (V2) — 서버리스 엔드포인트
  * =====================================================
- * 서울 열린데이터광장 "우리마을가게 상권분석서비스(행정동 단위)" OpenAPI로
- * 특정 행정동의 추정매출·점포(개폐업)·유동인구를 조회해 V1 결과 아래 오버레이한다.
- * 서울 전용(행정동 데이터가 서울만 존재).
+ * 서울 열린데이터광장 "우리마을가게 상권분석서비스(행정동)" OpenAPI로
+ * 행정동 단위 추정매출·점포(개폐업)·유동인구를 조회해 V1 결과 아래 오버레이한다. 서울 전용.
+ *
+ * ⚠️ 핵심 제약(라이브 진단으로 확정):
+ *   이 서비스들은 분기(STDR_YYQU_CD)로만 필터되고 행정동코드/명으로는 필터되지 않는다.
+ *   → 요청마다 분기 전체(매출 1.6만행·점포 3.5만행)를 끌어오는 건 비현실적.
+ *   → '분기 전체를 한 번 모아 행정동별로 집계한 정적 스냅샷(seoul_dong.json)'을 만들어
+ *     런타임은 그 파일을 코드로 즉시 조회한다. 분기 갱신 시 ?build=1 로 재생성.
  *
  * 환경변수: SEOUL_API_KEY  (data.seoul.go.kr 인증키)
- *
- * 서비스명(라이브 probe로 확정):
- *   추정매출-행정동  VwsmAdstrdSelngW   (행정동 × 업종, 다행 → 합산)
- *   점포-행정동      VwsmAdstrdStorW    (행정동 × 업종, 다행 → 합산)
- *   길단위인구-행정동 VwsmAdstrdFlpopW   (행정동 1행)
- * 행정동코드: ADSTRD_CD = 8자리 = 카카오 coord2RegionCode H코드(10자리) 앞 8자리.
+ * 서비스명: VwsmAdstrdSelngW(매출)·VwsmAdstrdStorW(점포)·VwsmAdstrdFlpopW(유동인구)
+ * 행정동코드: ADSTRD_CD 8자리 = 카카오 coord2RegionCode H코드(10자리) 앞 8자리.
  *
  * 호출:
- *   /api/seoulcommerce?code=1150060400&gu=강서구&dong=가양2동
- *   /api/seoulcommerce?probe=1   (스키마 재진단용)
+ *   /api/seoulcommerce?code=1150060400&gu=강서구&dong=가양2동   (런타임 조회: 정적 스냅샷)
+ *   /api/seoulcommerce?build=1                                  (관리자: 최신분기 스냅샷 JSON 생성→커밋용)
+ *   /api/seoulcommerce?build=1&q=20261                          (분기 지정 생성)
  */
+
+const fs = require('fs');
+const path = require('path');
 
 const SEOUL_BASE = 'http://openapi.seoul.go.kr:8088';
 const SVC = { SELNG: 'VwsmAdstrdSelngW', STOR: 'VwsmAdstrdStorW', FLPOP: 'VwsmAdstrdFlpopW' };
+const SNAPSHOT = path.join(__dirname, 'seoul_dong.json');
 
-const config = { maxDuration: 30 };
+const config = { maxDuration: 60 };
 module.exports.config = config;
 
 async function timedFetch(url, ms) {
@@ -31,12 +37,11 @@ async function timedFetch(url, ms) {
   finally { clearTimeout(t); }
 }
 
-// 서울 OpenAPI 호출. path args = [start, end, ...filters]
 async function callSeoul(key, svc, args, ms = 9000) {
   const url = `${SEOUL_BASE}/${key}/json/${svc}/${args.join('/')}`;
   const res = await timedFetch(url, ms);
   const text = await res.text();
-  let j; try { j = JSON.parse(text); } catch { return { svc, code: 'PARSE_ERR', rows: [], total: null, raw: text.slice(0, 160) }; }
+  let j; try { j = JSON.parse(text); } catch { return { svc, code: 'PARSE_ERR', rows: [], total: null }; }
   const node = j[svc] || j;
   const result = node.RESULT || j.RESULT || {};
   return { svc, code: result.CODE || null, message: result.MESSAGE || null,
@@ -44,163 +49,161 @@ async function callSeoul(key, svc, args, ms = 9000) {
            rows: Array.isArray(node.row) ? node.row : [] };
 }
 
-const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/[,\s]/g, '')); return Number.isFinite(n) ? n : 0; };
-
-// 후보 분기(YYYYQ, 최신순). 발행 시차 고려.
-const QUARTERS = ['20261', '20254', '20253', '20252', '20251', '20244', '20243'];
-
-// FLPOP 기준으로 해당 행정동 데이터가 있는 최신 분기 찾기
-async function latestQuarter(key, code8) {
-  for (const q of QUARTERS) {
-    const r = await callSeoul(key, SVC.FLPOP, ['1', '1', q, code8], 6000).catch(() => null);
-    if (r && r.code === 'INFO-000' && r.rows.length) return q;
-  }
-  return null;
+async function mapLimit(items, limit, fn) {
+  const ret = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; ret[idx] = await fn(items[idx], idx); }
+  }));
+  return ret;
 }
 
-// 시간대 6구간 라벨
-const TMZON = [
-  ['00_06', '심야(0-6시)'], ['06_11', '오전(6-11시)'], ['11_14', '점심(11-14시)'],
-  ['14_17', '오후(14-17시)'], ['17_21', '저녁(17-21시)'], ['21_24', '밤(21-24시)'],
-];
+const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/[,\s]/g, '')); return Number.isFinite(n) ? n : 0; };
+
+const QUARTERS = ['20261', '20254', '20253', '20252', '20251', '20244', '20243'];
+const TMZON = [['00_06', '심야(0-6시)'], ['06_11', '오전(6-11시)'], ['11_14', '점심(11-14시)'],
+               ['14_17', '오후(14-17시)'], ['17_21', '저녁(17-21시)'], ['21_24', '밤(21-24시)']];
 const AGES = [['10', '10대'], ['20', '20대'], ['30', '30대'], ['40', '40대'], ['50', '50대'], ['60_ABOVE', '60대+']];
 
-// 합계 객체에서 최대 항목 라벨 뽑기
 function peakLabel(pairs) {
   let best = null;
   for (const [label, val] of pairs) if (best === null || val > best[1]) best = [label, val];
   return best ? best[0] : null;
 }
 
+// 한 서비스의 한 분기 전체 페이지를 끌어와 row를 모두 반환
+async function fetchAllQuarter(key, svc, quarter) {
+  const first = await callSeoul(key, svc, ['1', '1000', quarter]);
+  if (first.code !== 'INFO-000') return { rows: [], total: first.total || 0, code: first.code };
+  const total = first.total || first.rows.length;
+  let rows = first.rows.slice();
+  const pages = Math.ceil(total / 1000);
+  if (pages > 1) {
+    const ranges = [];
+    for (let p = 2; p <= pages; p++) ranges.push([(p - 1) * 1000 + 1, p * 1000]);
+    const more = await mapLimit(ranges, 6, ([s, e]) =>
+      callSeoul(key, svc, [String(s), String(e), quarter]).then((r) => r.rows).catch(() => []));
+    more.forEach((rs) => { rows = rows.concat(rs); });
+  }
+  return { rows, total };
+}
+
+// 분기 전체 → 행정동별 집계 스냅샷
+async function buildSnapshot(key, quarter) {
+  const [selng, stor, flpop] = await Promise.all([
+    fetchAllQuarter(key, SVC.SELNG, quarter),
+    fetchAllQuarter(key, SVC.STOR, quarter),
+    fetchAllQuarter(key, SVC.FLPOP, quarter),
+  ]);
+
+  const dongs = {};
+  const ensure = (cd, nm) => (dongs[cd] || (dongs[cd] = { nm, s: null, st: null, f: null }));
+
+  // 매출 합산
+  for (const r of selng.rows) {
+    const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
+    const d = ensure(cd, r.ADSTRD_CD_NM);
+    const s = d.s || (d.s = { amt: 0, cnt: 0, mdwk: 0, wkend: 0, ml: 0, fml: 0,
+      age: Object.fromEntries(AGES.map(([k]) => [k, 0])), tz: Object.fromEntries(TMZON.map(([k]) => [k, 0])), ind: 0 });
+    s.amt += num(r.THSMON_SELNG_AMT); s.cnt += num(r.THSMON_SELNG_CO);
+    s.mdwk += num(r.MDWK_SELNG_AMT); s.wkend += num(r.WKEND_SELNG_AMT);
+    s.ml += num(r.ML_SELNG_AMT); s.fml += num(r.FML_SELNG_AMT); s.ind += 1;
+    for (const [k] of AGES) s.age[k] += num(r[`AGRDE_${k}_SELNG_AMT`]);
+    for (const [k] of TMZON) s.tz[k] += num(r[`TMZON_${k}_SELNG_AMT`]);
+  }
+  // 점포 합산
+  for (const r of stor.rows) {
+    const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
+    const d = ensure(cd, r.ADSTRD_CD_NM);
+    const st = d.st || (d.st = { total: 0, op: 0, cl: 0, frc: 0 });
+    st.total += num(r.STOR_CO); st.op += num(r.OPBIZ_STOR_CO); st.cl += num(r.CLSBIZ_STOR_CO); st.frc += num(r.FRC_STOR_CO);
+  }
+  // 유동인구(행정동 1행)
+  for (const r of flpop.rows) {
+    const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
+    const d = ensure(cd, r.ADSTRD_CD_NM);
+    d.f = { tot: num(r.TOT_FLPOP_CO), ml: num(r.ML_FLPOP_CO), fml: num(r.FML_FLPOP_CO),
+      age: Object.fromEntries(AGES.map(([k]) => [k, num(r[`AGRDE_${k}_FLPOP_CO`])])),
+      tz: Object.fromEntries(TMZON.map(([k]) => [k, num(r[`TMZON_${k}_FLPOP_CO`])])) };
+  }
+
+  return { quarter, generatedAt: null, counts: { selng: selng.rows.length, stor: stor.rows.length, flpop: flpop.rows.length, dongs: Object.keys(dongs).length }, dongs };
+}
+
+// 집계 dong 레코드 → 응답 형태로 변환
+function shapeDong(d) {
+  const out = {};
+  if (d.s) {
+    const s = d.s;
+    out.sales = {
+      monthlyAmt: s.amt, monthlyCnt: s.cnt, weekdayAmt: s.mdwk, weekendAmt: s.wkend, male: s.ml, female: s.fml,
+      topAge: peakLabel(AGES.map(([k, l]) => [l, s.age[k]])),
+      topTime: peakLabel(TMZON.map(([k, l]) => [l, s.tz[k]])),
+      byAge: AGES.map(([k, l]) => ({ label: l, amt: s.age[k] })),
+      byTime: TMZON.map(([k, l]) => ({ label: l, amt: s.tz[k] })),
+      induties: s.ind,
+    };
+  }
+  if (d.st) {
+    const st = d.st;
+    out.store = { total: st.total, opened: st.op, closed: st.cl, franchise: st.frc,
+      openRate: st.total ? Math.round((st.op / st.total) * 1000) / 10 : null,
+      closeRate: st.total ? Math.round((st.cl / st.total) * 1000) / 10 : null,
+      franchiseRate: st.total ? Math.round((st.frc / st.total) * 1000) / 10 : null };
+  }
+  if (d.f) {
+    const f = d.f;
+    out.foot = { total: f.tot, male: f.ml, female: f.fml,
+      topAge: peakLabel(AGES.map(([k, l]) => [l, f.age[k]])),
+      topTime: peakLabel(TMZON.map(([k, l]) => [l, f.tz[k]])),
+      byTime: TMZON.map(([k, l]) => ({ label: l, co: f.tz[k] })) };
+  }
+  return out;
+}
+
 module.exports = async function handler(req, res) {
   try {
-    const key = process.env.SEOUL_API_KEY;
-    if (!key) {
-      res.status(500).json({ error: 'SEOUL_API_KEY 환경변수가 설정되지 않았습니다.',
-        hint: 'data.seoul.go.kr 인증키를 Vercel 환경변수 SEOUL_API_KEY로 등록하세요.' });
-      return;
-    }
     const qy = req.query || {};
+    const key = process.env.SEOUL_API_KEY;
 
-    // ---- probe 모드(진단) ----
-    if (qy.probe) {
-      const out = {};
-      for (const [m, svc] of Object.entries(SVC)) {
-        const r = await callSeoul(key, svc, ['1', '2']).catch((e) => ({ error: e.message }));
-        out[m] = { svc, code: r.code, total: r.total, keys: Object.keys(r.rows && r.rows[0] || {}) };
+    // ---- 관리자: 스냅샷 생성 (커밋용 JSON 출력) ----
+    if (qy.build) {
+      if (!key) { res.status(500).json({ error: 'SEOUL_API_KEY 없음' }); return; }
+      let quarter = qy.q;
+      if (!quarter) {
+        for (const q of QUARTERS) {
+          const r = await callSeoul(key, SVC.FLPOP, ['1', '1', q], 6000).catch(() => null);
+          if (r && r.code === 'INFO-000' && r.rows.length) { quarter = q; break; }
+        }
       }
-      res.status(200).json(out);
+      if (!quarter) { res.status(502).json({ error: '최신 분기를 찾지 못함' }); return; }
+      const snap = await buildSnapshot(key, quarter);
+      res.status(200).json(snap);   // 이 출력을 api/seoul_dong.json 으로 저장·커밋
       return;
     }
 
-    // ---- 필터순서 진단: ?probe=filter&code=11500604&q=20261&name=가양2동 ----
-    if (qy.fprobe) {
-      const code8 = String(qy.code || '11500604').replace(/\D/g, '').slice(0, 8);
-      const q = qy.q || '20261';
-      const name = qy.name || '가양2동';
-      const variants = {
-        'A_quarterOnly': [q],
-        'B_quarter+code': [q, code8],
-        'C_codeOnly': [code8],
-        'D_quarter+name': [q, name],
-        'E_nameOnly': [name],
-      };
-      const out = {};
-      for (const [label, filt] of Object.entries(variants)) {
-        try {
-          const r = await callSeoul(key, SVC.SELNG, ['1', '5', ...filt]);
-          out[label] = { args: filt, code: r.code, total: r.total, firstDong: r.rows[0] && r.rows[0].ADSTRD_CD_NM };
-        } catch (e) { out[label] = { args: filt, error: e.message }; }
-      }
-      res.status(200).json({ tested: 'VwsmAdstrdSelngW', code8, q, name, results: out });
-      return;
-    }
+    // ---- 런타임: 정적 스냅샷 조회 ----
+    let snap;
+    try { snap = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8')); }
+    catch { res.status(503).json({ error: '서울 상권 스냅샷이 아직 생성되지 않았습니다. 관리자가 ?build=1 로 생성해야 합니다.' }); return; }
 
-    // ---- 정식 모드 ----
     const rawCode = String(qy.code || '').replace(/\D/g, '');
-    if (rawCode.length < 8) {
-      res.status(400).json({ error: 'code(카카오 행정동 코드)가 필요합니다.' });
-      return;
-    }
+    if (rawCode.length < 8) { res.status(400).json({ error: 'code(카카오 행정동 코드)가 필요합니다.' }); return; }
     const code8 = rawCode.slice(0, 8);
-    const dong = qy.dong || null, gu = qy.gu || null;
 
-    const quarter = qy.quarter || await latestQuarter(key, code8);
-    if (!quarter) {
-      res.status(404).json({ error: '이 행정동의 서울 상권 데이터를 찾지 못했습니다. (서울 외 지역이거나 데이터 미수록)', seoul: false });
-      return;
-    }
-
-    // 3개 데이터셋 병렬 조회 (행정동 필터)
-    const [selng, stor, flpop] = await Promise.all([
-      callSeoul(key, SVC.SELNG, ['1', '1000', quarter, code8]),
-      callSeoul(key, SVC.STOR, ['1', '1000', quarter, code8]),
-      callSeoul(key, SVC.FLPOP, ['1', '5', quarter, code8]),
-    ]);
-
-    // ===== 추정매출(업종 합산) =====
-    let sales = null;
-    if (selng.rows.length) {
-      const S = (k) => selng.rows.reduce((s, r) => s + num(r[k]), 0);
-      const monthAmt = S('THSMON_SELNG_AMT');
-      sales = {
-        monthlyAmt: monthAmt,                        // 행정동 월 추정매출 합(원)
-        monthlyCnt: S('THSMON_SELNG_CO'),
-        weekdayAmt: S('MDWK_SELNG_AMT'),
-        weekendAmt: S('WKEND_SELNG_AMT'),
-        male: S('ML_SELNG_AMT'), female: S('FML_SELNG_AMT'),
-        topAge: peakLabel(AGES.map(([k, l]) => [l, S(`AGRDE_${k}_SELNG_AMT`)])),
-        topTime: peakLabel(TMZON.map(([k, l]) => [l, S(`TMZON_${k}_SELNG_AMT`)])),
-        byAge: AGES.map(([k, l]) => ({ label: l, amt: S(`AGRDE_${k}_SELNG_AMT`) })),
-        byTime: TMZON.map(([k, l]) => ({ label: l, amt: S(`TMZON_${k}_SELNG_AMT`) })),
-        induties: selng.rows.length,
-      };
-    }
-
-    // ===== 점포/개폐업(업종 합산) =====
-    let store = null;
-    if (stor.rows.length) {
-      const totStor = stor.rows.reduce((s, r) => s + num(r.STOR_CO), 0);
-      const opStor = stor.rows.reduce((s, r) => s + num(r.OPBIZ_STOR_CO), 0);
-      const clStor = stor.rows.reduce((s, r) => s + num(r.CLSBIZ_STOR_CO), 0);
-      const frcStor = stor.rows.reduce((s, r) => s + num(r.FRC_STOR_CO), 0);
-      store = {
-        total: totStor, opened: opStor, closed: clStor, franchise: frcStor,
-        openRate: totStor ? Math.round((opStor / totStor) * 1000) / 10 : null,    // 개업률 %
-        closeRate: totStor ? Math.round((clStor / totStor) * 1000) / 10 : null,   // 폐업률 %
-        franchiseRate: totStor ? Math.round((frcStor / totStor) * 1000) / 10 : null,
-      };
-    }
-
-    // ===== 유동인구(행정동 1행) =====
-    let foot = null;
-    const f = flpop.rows[0];
-    if (f) {
-      foot = {
-        total: num(f.TOT_FLPOP_CO),
-        male: num(f.ML_FLPOP_CO), female: num(f.FML_FLPOP_CO),
-        topAge: peakLabel(AGES.map(([k, l]) => [l, num(f[`AGRDE_${k}_FLPOP_CO`])])),
-        topTime: peakLabel(TMZON.map(([k, l]) => [l, num(f[`TMZON_${k}_FLPOP_CO`])])),
-        byTime: TMZON.map(([k, l]) => ({ label: l, co: num(f[`TMZON_${k}_FLPOP_CO`]) })),
-      };
-    }
-
-    if (!sales && !store && !foot) {
-      res.status(404).json({ error: '이 행정동의 상권 데이터가 비어 있습니다.', seoul: true, quarter });
-      return;
-    }
+    const d = snap.dongs[code8];
+    if (!d) { res.status(404).json({ error: '이 행정동의 서울 상권 데이터가 없습니다(서울 외 지역이거나 미수록).', seoul: false }); return; }
 
     res.status(200).json({
       seoul: true,
-      query: { code8, gu, dong, quarter },
-      quarterLabel: `${quarter.slice(0, 4)}년 ${quarter.slice(4)}분기`,
-      sales, store, foot,
+      query: { code8, gu: qy.gu || null, dong: qy.dong || d.nm },
+      dongName: d.nm,
+      quarter: snap.quarter,
+      quarterLabel: `${snap.quarter.slice(0, 4)}년 ${snap.quarter.slice(4)}분기`,
+      ...shapeDong(d),
       disclaimer: '서울시 우리마을가게 상권분석서비스(행정동) 기준, 분기 갱신. 추정매출·점포는 행정동 내 전 업종 합산이며, 폐업률/개업률은 해당 분기 값입니다(3년 생존율과 다름).',
     });
   } catch (e) {
     const aborted = e && e.name === 'AbortError';
-    res.status(aborted ? 504 : 502).json({
-      error: aborted ? '서울 상권 서버가 일시적으로 응답하지 않습니다.' : '서울 상권 API 조회 실패',
-      detail: e.message });
+    res.status(aborted ? 504 : 502).json({ error: aborted ? '서울 상권 서버 응답 지연' : '서울 상권 처리 실패', detail: e.message });
   }
 };
