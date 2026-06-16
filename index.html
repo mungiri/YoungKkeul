@@ -716,9 +716,15 @@ function initMapView(){
   const status=document.getElementById('mapStatus');
   if(typeof kakao==='undefined'||!kakao.maps){ status.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 여부 확인 후 새로고침)'; return; }
   kakao.maps.load(()=>{
-    mapObj=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(37.5511,127.0409),level:6});
-    geocoder=new kakao.maps.services.Geocoder();
-    mapInfo=new kakao.maps.InfoWindow({removable:true});
+    try{
+      mapObj=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(37.5511,127.0409),level:6});
+      mapInfo=new kakao.maps.InfoWindow({removable:true});
+    }catch(e){ status.textContent='지도 초기화 실패: '+e.message+' (카카오 앱에 이 도메인이 등록됐는지 확인하세요)'; return; }
+    if(kakao.maps.services && kakao.maps.services.Geocoder){
+      geocoder=new kakao.maps.services.Geocoder();
+    }else{
+      status.textContent='카카오 지오코더(services)를 불러오지 못했습니다. 카카오 앱 > 플랫폼 > Web 사이트 도메인에 https://young-kkeul.vercel.app 등록 여부를 확인하세요.';
+    }
     mapInited=true;
     loadZones(document.getElementById('mapGu').value);
   });
@@ -737,7 +743,11 @@ async function loadZones(gu){
     await geocodeZones(mapZones, gu);
     renderZones();
     const ok=mapZones.filter(z=>z.lat&&z.lng).length;
-    status.textContent=`${gu} ${mapZones.length}개 구역 표시 완료 (좌표 변환 ${ok}건).`;
+    if(!geocoder){
+      status.textContent=`${gu} ${mapZones.length}개 구역 — 목록은 표시되나 지도 핀은 안 보입니다. 카카오 앱 > 플랫폼 > Web 도메인에 https://young-kkeul.vercel.app 등록 필요.`;
+    }else{
+      status.textContent=`${gu} ${mapZones.length}개 구역 표시 완료 (좌표 변환 ${ok}건).`;
+    }
   }catch(e){ status.textContent='조회 중 오류: '+e.message; }
 }
 
@@ -751,6 +761,7 @@ function geocodeOne(addr){
   });
 }
 async function geocodeZones(zones,gu){
+  if(!geocoder) return;   // 지오코더 미초기화(도메인 미등록 등) 시 지도 좌표 변환 생략
   for(const z of zones){
     if(z.lat&&z.lng) continue;
     let g=await geocodeOne(`서울 ${gu} ${z.address}`);
