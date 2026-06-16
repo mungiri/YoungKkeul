@@ -98,8 +98,9 @@ async function buildSnapshot(key, quarter) {
   const dongs = {};
   const ensure = (cd, nm) => (dongs[cd] || (dongs[cd] = { nm, s: null, st: null, f: null }));
 
-  // 매출 합산
+  // 매출 합산 (일부 서비스는 분기 필터가 안 먹어 전 분기가 섞여오므로, 대상 분기 행만)
   for (const r of selng.rows) {
+    if (String(r.STDR_YYQU_CD) !== quarter) continue;
     const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
     const d = ensure(cd, r.ADSTRD_CD_NM);
     const s = d.s || (d.s = { amt: 0, cnt: 0, mdwk: 0, wkend: 0, ml: 0, fml: 0,
@@ -112,13 +113,19 @@ async function buildSnapshot(key, quarter) {
   }
   // 점포 합산
   for (const r of stor.rows) {
+    if (String(r.STDR_YYQU_CD) !== quarter) continue;
     const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
     const d = ensure(cd, r.ADSTRD_CD_NM);
     const st = d.st || (d.st = { total: 0, op: 0, cl: 0, frc: 0 });
     st.total += num(r.STOR_CO); st.op += num(r.OPBIZ_STOR_CO); st.cl += num(r.CLSBIZ_STOR_CO); st.frc += num(r.FRC_STOR_CO);
   }
-  // 유동인구(행정동 1행)
+  // 유동인구(행정동 1행) — FLPOP은 분기 필터가 안 먹어 전 분기가 섞여옴.
+  //   대상 분기가 있으면 그것만, 없으면 FLPOP에 존재하는 최신 분기로 폴백.
+  const flpopQuarters = new Set(flpop.rows.map((r) => String(r.STDR_YYQU_CD)));
+  const flpopQ = flpopQuarters.has(quarter) ? quarter
+    : [...flpopQuarters].sort().reverse()[0];
   for (const r of flpop.rows) {
+    if (String(r.STDR_YYQU_CD) !== flpopQ) continue;
     const cd = String(r.ADSTRD_CD); if (cd.length < 8) continue;
     const d = ensure(cd, r.ADSTRD_CD_NM);
     d.f = { tot: num(r.TOT_FLPOP_CO), ml: num(r.ML_FLPOP_CO), fml: num(r.FML_FLPOP_CO),
@@ -126,7 +133,9 @@ async function buildSnapshot(key, quarter) {
       tz: Object.fromEntries(TMZON.map(([k]) => [k, num(r[`TMZON_${k}_FLPOP_CO`])])) };
   }
 
-  return { quarter, generatedAt: null, counts: { selng: selng.rows.length, stor: stor.rows.length, flpop: flpop.rows.length, dongs: Object.keys(dongs).length }, dongs };
+  const footDongs = Object.values(dongs).filter((d) => d.f).length;
+  return { quarter, footQuarter: flpopQ, generatedAt: null,
+    counts: { selng: selng.rows.length, stor: stor.rows.length, flpop: flpop.rows.length, dongs: Object.keys(dongs).length, footDongs }, dongs };
 }
 
 // 집계 dong 레코드 → 응답 형태로 변환
