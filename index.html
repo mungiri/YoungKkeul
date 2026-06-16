@@ -293,14 +293,13 @@
 <!-- 업데이트 안내 모달 -->
 <div class="modal-ov" id="whatsnew">
   <div class="modal" role="dialog" aria-modal="true" aria-label="업데이트 안내">
-    <h2>새로워진 영끌컷 ✨</h2>
-    <div class="m-sub">예산으로 살 수 있는 단지를 더 똑똑하게 찾아드려요.</div>
-    <div class="feat"><div class="ic">🚇</div><div><div class="ft">역세권 정보 · 역세권만 필터</div><div class="fd">단지별 가까운 지하철 호선·역·도보시간 표시. 도보 10분 이내만 보기.</div></div></div>
-    <div class="feat"><div class="ic">🏢</div><div><div class="ft">단지 세대수 · 대단지 필터</div><div class="fd">최소 세대수로 나홀로 단지를 거르고 대단지만 골라보기.</div></div></div>
-    <div class="feat"><div class="ic">📈</div><div><div class="ft">단지 가격 추세</div><div class="fd">최근 6개월 ㎡당 평균가가 오르는지(▲) 내리는지(▼).</div></div></div>
-    <div class="feat"><div class="ic">📐</div><div><div class="ft">평형 ↔ ㎡ 단위 전환</div><div class="fd">익숙한 평형(25·34평형)으로 바로 검색.</div></div></div>
-    <div class="feat"><div class="ic">📍</div><div><div class="ft">주소 · 네이버 지도/부동산 링크</div><div class="fd">단지 위치와 매물을 새 탭에서 바로 확인.</div></div></div>
-    <div class="feat"><div class="ic">🔗</div><div><div class="ft">결과 공유 · 이미지 저장</div><div class="fd">내 마지노선을 링크나 이미지 한 장으로.</div></div></div>
+    <h2>이번 업데이트 ✨</h2>
+    <div class="m-sub">재개발 지도와 매물 지도가 새로 들어왔어요.</div>
+    <div class="feat"><div class="ic">🏗️</div><div><div class="ft">재개발 지도 탭 추가</div><div class="fd">서울 자치구별 재개발·재건축 정비사업 구역을 진행 단계별 색상 마커로 표시. (정보몽땅 공식 기준)</div></div></div>
+    <div class="feat"><div class="ic">🗺️</div><div><div class="ft">구역별 위치도 · 사업현황 바로가기</div><div class="fd">마커를 누르면 정보몽땅 위치도(사진)·사업현황 페이지로 바로 이동.</div></div></div>
+    <div class="feat"><div class="ic">🏠</div><div><div class="ft">네이버 부동산 빌라·주택 연결</div><div class="fd">재개발 지구 특성에 맞춰 그 위치의 빌라·주택 매물 지도로 연결.</div></div></div>
+    <div class="feat"><div class="ic">📍</div><div><div class="ft">매물 결과를 지도로</div><div class="fd">영끌 계산기에서 찾은 단지들을 카카오맵 위에 마커로 한눈에.</div></div></div>
+    <div class="feat"><div class="ic">✏️</div><div><div class="ft">깔끔한 빈 화면 시작</div><div class="fd">불필요한 기본값을 없애 직접 입력·선택할 때만 조회합니다.</div></div></div>
     <div class="modal-foot">
       <label><input type="checkbox" id="wnDont"> 다시 보지 않기</label>
       <button class="close-btn" id="wnClose">닫기</button>
@@ -740,7 +739,7 @@ document.getElementById('imgBtn').addEventListener('click',function(){
 
 /* ===== 업데이트 안내 모달 (다시 보지 않기 = localStorage) ===== */
 (function whatsNew(){
-  const KEY='ykk_whatsnew_v1';
+  const KEY='ykk_whatsnew_v2';
   const ov=document.getElementById('whatsnew');
   try{ if(localStorage.getItem(KEY)) return; }catch(e){}
   ov.classList.add('show');
