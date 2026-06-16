@@ -93,6 +93,29 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    // ---- 필터순서 진단: ?probe=filter&code=11500604&q=20261&name=가양2동 ----
+    if (qy.fprobe) {
+      const code8 = String(qy.code || '11500604').replace(/\D/g, '').slice(0, 8);
+      const q = qy.q || '20261';
+      const name = qy.name || '가양2동';
+      const variants = {
+        'A_quarterOnly': [q],
+        'B_quarter+code': [q, code8],
+        'C_codeOnly': [code8],
+        'D_quarter+name': [q, name],
+        'E_nameOnly': [name],
+      };
+      const out = {};
+      for (const [label, filt] of Object.entries(variants)) {
+        try {
+          const r = await callSeoul(key, SVC.SELNG, ['1', '5', ...filt]);
+          out[label] = { args: filt, code: r.code, total: r.total, firstDong: r.rows[0] && r.rows[0].ADSTRD_CD_NM };
+        } catch (e) { out[label] = { args: filt, error: e.message }; }
+      }
+      res.status(200).json({ tested: 'VwsmAdstrdSelngW', code8, q, name, results: out });
+      return;
+    }
+
     // ---- 정식 모드 ----
     const rawCode = String(qy.code || '').replace(/\D/g, '');
     if (rawCode.length < 8) {
