@@ -371,7 +371,28 @@
       <div class="barlist" id="areaMcls"></div>
     </div>
 
-    <p class="disclaimer">소상공인시장진흥공단 상가(상권)정보 기준(분기 갱신). 신규·폐업 반영에 시차가 있고 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기 라벨은 표본 기반 자동 추정으로 참고용입니다.</p>
+    <!-- 서울 행정동 심화(V2) -->
+    <div class="panel" id="areaSeoulPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:2px;">서울 상권 심화 <span id="seoulDong" style="color:var(--gold)"></span></div>
+      <div class="hint" id="seoulQuarter" style="margin-bottom:14px;"></div>
+      <div class="grid3">
+        <div class="stat"><div class="k">월 추정매출</div><div class="v" id="seoulSales">–</div></div>
+        <div class="stat"><div class="k">분기 유동인구</div><div class="v" id="seoulFoot">–</div></div>
+        <div class="stat"><div class="k">점포 수</div><div class="v" id="seoulStore">–</div></div>
+      </div>
+      <div class="grid3" style="margin-top:10px;">
+        <div class="stat"><div class="k">폐업률</div><div class="v" id="seoulClose">–</div></div>
+        <div class="stat"><div class="k">개업률</div><div class="v" id="seoulOpen">–</div></div>
+        <div class="stat"><div class="k">프랜차이즈</div><div class="v" id="seoulFrc">–</div></div>
+      </div>
+      <div class="binding-box" id="seoulConsumer" style="margin-top:14px;"></div>
+      <div class="res-label" style="margin:18px 0 8px;">시간대별 추정매출</div>
+      <div class="barlist" id="seoulSalesTime"></div>
+      <div class="res-label" style="margin:18px 0 8px;">시간대별 유동인구</div>
+      <div class="barlist" id="seoulFootTime"></div>
+    </div>
+
+    <p class="disclaimer">소상공인시장진흥공단 상가(상권)정보 기준(분기 갱신). 신규·폐업 반영에 시차가 있고 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기 라벨은 표본 기반 자동 추정으로 참고용입니다. ‘서울 상권 심화’는 서울시 우리마을가게 상권분석서비스(행정동) 기준이며 서울에 한해 표시됩니다.</p>
   </div><!-- /viewArea -->
 
 <!-- 업데이트 안내 모달 -->
@@ -1164,6 +1185,74 @@ function renderArea(data, loc){
 
   // 지도 마커
   drawAreaMap(data, loc);
+
+  // 서울 행정동 심화(V2) — 서울이면 오버레이
+  loadSeoulOverlay(loc);
+}
+
+/* ===== 서울 행정동 심화(V2) ===== */
+function wonShort(v){
+  v=Number(v)||0;
+  if(v>=1e12) return (v/1e12).toFixed(1).replace(/\.0$/,'')+'조';
+  if(v>=1e8)  return Math.round(v/1e8).toLocaleString()+'억';
+  if(v>=1e4)  return Math.round(v/1e4).toLocaleString()+'만';
+  return v.toLocaleString();
+}
+function loadSeoulOverlay(loc){
+  const panel=document.getElementById('areaSeoulPanel');
+  panel.style.display='none';
+  if(!geocoder||!geocoder.coord2RegionCode) return;
+  geocoder.coord2RegionCode(loc.lng, loc.lat, async (result,status)=>{
+    if(status!==kakao.maps.services.Status.OK||!result) return;
+    const h=result.find(r=>r.region_type==='H')||result[0];
+    if(!h||h.region_1depth_name!=='서울특별시') return;   // 서울만 표시
+    try{
+      const res=await fetch(`/api/seoulcommerce?code=${encodeURIComponent(h.code)}&gu=${encodeURIComponent(h.region_2depth_name||'')}&dong=${encodeURIComponent(h.region_3depth_name||'')}`);
+      const data=await res.json();
+      if(!res.ok||!data.seoul) return;
+      renderSeoulOverlay(data);
+    }catch(e){}
+  });
+}
+function renderSeoulOverlay(d){
+  const panel=document.getElementById('areaSeoulPanel');
+  document.getElementById('seoulDong').textContent='· '+(d.dongName||'');
+  document.getElementById('seoulQuarter').textContent=`${d.quarterLabel} · 서울시 우리마을가게 상권분석서비스(행정동) 기준`;
+
+  const s=d.sales, st=d.store, f=d.foot;
+  document.getElementById('seoulSales').textContent = s? wonShort(s.monthlyAmt) : '–';
+  document.getElementById('seoulFoot').textContent  = f? f.total.toLocaleString() : '–';
+  document.getElementById('seoulStore').textContent = st? st.total.toLocaleString()+'개' : '–';
+  document.getElementById('seoulClose').textContent = st&&st.closeRate!=null? st.closeRate+'%' : '–';
+  document.getElementById('seoulOpen').textContent  = st&&st.openRate!=null? st.openRate+'%' : '–';
+  document.getElementById('seoulFrc').textContent   = st&&st.franchiseRate!=null? st.franchiseRate+'%' : '–';
+
+  // 주 소비층 요약
+  const cb=document.getElementById('seoulConsumer');
+  if(s){
+    const tot=(s.male||0)+(s.female||0);
+    const mp=tot?Math.round(s.male/tot*100):0, fp=tot?100-mp:0;
+    cb.innerHTML=`주 소비층 <b>${s.topAge||'-'}</b> · 매출 피크 <b>${s.topTime||'-'}</b> · 성별 남 ${mp}% / 여 ${fp}%<br/>주중 ${wonShort(s.weekdayAmt)} · 주말 ${wonShort(s.weekendAmt)} (월 추정)`;
+  } else cb.textContent='추정매출 데이터 없음';
+
+  // 시간대별 매출 막대
+  if(s) renderTimeBars(document.getElementById('seoulSalesTime'), s.byTime.map(t=>({name:t.label,val:t.amt})), wonShort);
+  // 시간대별 유동인구 막대
+  if(f) renderTimeBars(document.getElementById('seoulFootTime'), f.byTime.map(t=>({name:t.label,val:t.co})), (v)=>Number(v).toLocaleString());
+
+  panel.style.display='';
+}
+function renderTimeBars(wrap, list, fmt){
+  wrap.innerHTML='';
+  const max=Math.max(1,...list.map(x=>x.val));
+  list.forEach(row=>{
+    const pct=Math.round((row.val/max)*100);
+    const div=document.createElement('div'); div.className='barrow';
+    div.innerHTML=`<div class="bn">${row.name}</div>
+      <div class="bt"><div class="bf" style="width:${pct}%"></div></div>
+      <div class="bc">${fmt(row.val)}</div>`;
+    wrap.appendChild(div);
+  });
 }
 
 function renderBars(wrap, list, total, useColor){
