@@ -128,26 +128,42 @@ function diversityIndex(countMap) {
 }
 
 // 집계 결과 → 동네 분위기(vibe) 자동 라벨링 (룰베이스)
+//  ※ 상가정보엔 B2B 사무실(과학·기술/시설관리·임대 등)이 다수 섞여 소비상권 분위기를 가린다.
+//    그래서 (1) 소비업종 베이스 대비 비율로 보고, (2) 오피스 비중은 별도 신호로 잡는다.
 function deriveVibe(stat) {
-  const { total, density, derived, diversity } = stat;
-  const r = (k) => total ? derived[k] / total : 0;
+  const { density, derived, diversity, byLcls } = stat;
   const tags = [];
 
-  if (density >= 1500) tags.push('초밀집 번화가');
-  else if (density >= 600) tags.push('활발한 상권');
-  else if (density >= 200) tags.push('보통 생활상권');
+  // 1) 밀집도 티어 (전체 점포 밀도/㎢ 기준)
+  if (density >= 3000) tags.push('초밀집 번화가');
+  else if (density >= 1200) tags.push('활발한 상권');
+  else if (density >= 400) tags.push('보통 생활상권');
   else tags.push('한산한 동네');
 
-  if (r('bar') >= 0.08) tags.push('야간·유흥 활성');
-  if (r('cafe') >= 0.10) tags.push('카페 밀집');
-  if (r('restaurant') >= 0.30) tags.push('먹자상권');
-  if (r('education') >= 0.10) tags.push('학원가');
-  if (r('medical') >= 0.08) tags.push('의료 밀집');
-  if (r('convenience') >= 0.18) tags.push('생활편의 충분');
-  if (diversity >= 0.85) tags.push('업종 다양');
-  else if (diversity <= 0.55 && total >= 30) tags.push('특정업종 편중');
+  // 2) 오피스(업무) 비중 — 대분류 기준. 강남·여의도형 신호.
+  const lclsTotal = (byLcls || []).reduce((s, x) => s + x.count, 0) || 1;
+  const officeCnt = (byLcls || []).filter((x) => /과학·기술|시설관리·임대/.test(x.name))
+    .reduce((s, x) => s + x.count, 0);
+  if (officeCnt / lclsTotal >= 0.22) tags.push('오피스 상권');
 
-  // 한 줄 요약: 가장 특징적인 2~3개 태그 조합
+  // 3) 소비업종 베이스(오피스/B2B 제외) 대비 비율
+  const cb = (derived.restaurant + derived.cafe + derived.bar + derived.convenience +
+              derived.beauty + derived.medical + derived.education + derived.fashion + derived.leisure) || 1;
+  const r = (k) => derived[k] / cb;
+  const sig = [];
+  if (r('restaurant') >= 0.32) sig.push(['먹자상권', r('restaurant')]);
+  if (r('cafe') >= 0.10) sig.push(['카페 밀집', r('cafe')]);
+  if (r('bar') >= 0.08) sig.push(['야간·유흥 활성', r('bar')]);
+  if (r('beauty') >= 0.12) sig.push(['뷰티 상권', r('beauty')]);
+  if (r('education') >= 0.16) sig.push(['학원가', r('education')]);
+  if (r('medical') >= 0.12) sig.push(['의료 밀집', r('medical')]);
+  if (r('leisure') >= 0.10) sig.push(['놀거리 많은', r('leisure')]);
+  if (r('convenience') >= 0.16) sig.push(['생활편의 충분', r('convenience')]);
+  sig.sort((a, b) => b[1] - a[1]).forEach(([t]) => tags.push(t));
+
+  if (diversity >= 0.88) tags.push('업종 다양');
+
+  // 한 줄 요약: 가장 특징적인 3개 태그
   const headline = tags.slice(0, 3).join(' · ');
   return { headline, tags };
 }
@@ -227,8 +243,9 @@ module.exports = async function handler(req, res) {
     const diversity = diversityIndex(byLcls);
 
     const sortDesc = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+    const lclsArr = sortDesc(byLcls);
 
-    const stat = { total: totalCount, collected, density, diversity, derived };
+    const stat = { total: totalCount, collected, density, diversity, derived, byLcls: lclsArr };
     const vibe = deriveVibe(stat);
 
     res.status(200).json({
@@ -239,7 +256,7 @@ module.exports = async function handler(req, res) {
       density,                     // 점포/㎢
       diversity,                   // 업종 다양성 0~1
       vibe,                        // { headline, tags }
-      byLcls: sortDesc(byLcls),    // 대분류 구성 [{name,count}]
+      byLcls: lclsArr,             // 대분류 구성 [{name,count}]
       byMcls: sortDesc(byMcls).slice(0, 12),  // 중분류 상위 12
       derived,                     // 카페/술집/음식점/편의/의료/학원 등 파생 카운트
       markers,                     // 지도용 좌표(최대 600)
