@@ -100,16 +100,43 @@
   .modal-foot input{accent-color:var(--gold); width:16px; height:16px;}
   .close-btn{padding:11px 24px; border-radius:9999px; border:none; background:var(--gold); color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; transition:transform .1s;}
   .close-btn:active{transform:scale(.97);}
+  /* ===== 탭 네비 ===== */
+  .tabs{display:flex; gap:8px; margin-bottom:24px;}
+  .tab{flex:1; padding:12px; border-radius:9999px; border:1px solid var(--line); background:var(--panel); color:var(--sub); font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; letter-spacing:-.2px; transition:transform .1s, background .15s, color .15s, border-color .15s;}
+  .tab.on{background:var(--gold); border-color:var(--gold); color:#fff;}
+  .tab:active{transform:scale(.98);}
+  /* ===== 재개발 지도 뷰 ===== */
+  #map{width:100%; height:460px; border-radius:18px; border:1px solid var(--line); background:#e8e8ed;}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin:14px 2px 4px;}
+  .legend span{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--sub);}
+  .legend i{width:12px; height:12px; border-radius:50%; display:inline-block; flex-shrink:0;}
+  .stage-chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .stage-chips .toggle-btn{flex:0 1 auto;}
+  .zone-card{padding:14px 0; border-top:1px solid var(--line); cursor:pointer;}
+  .zone-card:first-of-type{border-top:none;}
+  .zone-name{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:-.2px;}
+  .zone-meta{font-size:13px; color:var(--sub); margin-top:4px; line-height:1.5; display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+  .zone-badge{display:inline-block; padding:2px 9px; border-radius:9999px; font-size:12px; font-weight:600; color:#fff;}
+  .iw{padding:10px 12px; font-family:-apple-system,'Inter',system-ui,sans-serif; max-width:230px;}
+  .iw .n{font-size:14px; font-weight:600; color:#1d1d1f; margin-bottom:4px; line-height:1.35;}
+  .iw .m{font-size:12px; color:#6e6e73; line-height:1.55;}
+  .iw a{color:#0066cc; font-size:12px; font-weight:600; text-decoration:none;}
   @media (max-width:560px){
     body{padding:28px 16px;}
     .grid2{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;}
     h1{font-size:30px;}
     .res-price{font-size:40px;}
+    #map{height:380px;}
   }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="tabs">
+    <button class="tab on" data-view="viewCalc">💰 영끌 계산기</button>
+    <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
+  </div>
+  <div id="viewCalc">
   <div>
     <div class="eyebrow">영끌컷 · 자력 독립 마지노선</div>
     <h1>내 자산으로 풀 대출 받으면<br/>어디까지 살 수 있나</h1>
@@ -218,7 +245,46 @@
   </div>
 
   <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 저장되지 않습니다.</p>
-</div>
+  </div><!-- /viewCalc -->
+
+  <!-- ===== 재개발 지도 뷰 ===== -->
+  <div id="viewMap" style="display:none;">
+    <div>
+      <div class="eyebrow">재개발 지도 · 서울 정비사업</div>
+      <h1>우리 동네 재개발<br/>어디까지 왔나</h1>
+      <p class="lede">서울시 정비사업 정보몽땅 기준, 자치구별 재개발·재건축 구역을 진행 단계별로 지도에 표시합니다. 마커나 목록을 누르면 상세 정보로 이동합니다.</p>
+    </div>
+
+    <div class="panel">
+      <div class="grid3" style="gap:12px; margin-bottom:16px;">
+        <label class="field" style="margin:0;"><div class="flabel">자치구</div>
+          <div class="frow"><select id="mapGu" style="flex:1; background:transparent; border:none; outline:none; color:var(--ink); font-size:16px; font-family:inherit;"></select></div></label>
+      </div>
+      <div class="flabel" style="margin-bottom:8px;">진행 단계 필터</div>
+      <div class="stage-chips" id="stageChips" style="margin-bottom:16px;">
+        <button class="toggle-btn on" data-stage="all">전체</button>
+        <button class="toggle-btn" data-stage="planned">진행 예정</button>
+        <button class="toggle-btn" data-stage="ongoing">진행 중</button>
+        <button class="toggle-btn" data-stage="late">후기 단계</button>
+        <button class="toggle-btn" data-stage="done">완료/청산</button>
+      </div>
+      <div id="map"></div>
+      <div class="legend">
+        <span><i style="background:#0066cc"></i>진행 예정</span>
+        <span><i style="background:#1d8a4e"></i>진행 중</span>
+        <span><i style="background:#e8820c"></i>후기 단계(관리처분~착공)</span>
+        <span><i style="background:#86868b"></i>완료/청산</span>
+      </div>
+      <div id="mapStatus" class="hint" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="res-label" style="margin-bottom:8px;">구역 목록 <span id="zoneCount" style="color:var(--gold)"></span></div>
+      <div id="zoneList"></div>
+    </div>
+
+    <p class="disclaimer">서울시 정비사업 정보몽땅(cleanup.seoul.go.kr) 사업장검색 기준. 진행단계는 원본 텍스트를 자동 분류한 것으로 실제와 다를 수 있으며, 지도 위치는 대표지번 주소를 지오코딩한 근사값입니다. 투자 판단의 단독 근거로 삼지 마세요.</p>
+  </div><!-- /viewMap -->
 
 <!-- 업데이트 안내 모달 -->
 <div class="modal-ov" id="whatsnew">
@@ -237,6 +303,9 @@
     </div>
   </div>
 </div>
+
+<!-- 카카오 지도 SDK (지도 표시 + 주소 지오코딩용 services 라이브러리) -->
+<script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3c507dc4edc22b1abdce54f169e2f6c2&libraries=services&autoload=false"></script>
 
 <script>
 /* ===== 규제 파라미터 (2026.6) ===== */
@@ -612,6 +681,132 @@ document.getElementById('imgBtn').addEventListener('click',function(){
   ov.addEventListener('click',function(e){ if(e.target===ov) close(); });   // 배경 클릭 시 닫기
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&ov.classList.contains('show')) close(); });
 })();
+
+/* ===== 🏗️ 재개발 지도 뷰 ===== */
+const STAGE_COLOR={planned:'#0066cc',ongoing:'#1d8a4e',late:'#e8820c',done:'#86868b',unknown:'#c0c0c5'};
+let mapObj=null, geocoder=null, mapMarkers=[], mapInfo=null,
+    mapZones=[], mapStageFilter='all', mapInited=false;
+
+/* 탭 전환 */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  t.classList.add('on');
+  const view=t.dataset.view;
+  document.getElementById('viewCalc').style.display = view==='viewCalc'?'':'none';
+  document.getElementById('viewMap').style.display  = view==='viewMap' ?'':'none';
+  if(view==='viewMap') initMapView();
+}));
+
+/* 자치구 셀렉트(지도용) */
+(function initMapGu(){
+  const sel=document.getElementById('mapGu');
+  SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+  sel.value='성동구';
+  sel.addEventListener('change',()=>loadZones(sel.value));
+})();
+
+/* 단계 필터 칩 */
+document.querySelectorAll('#stageChips .toggle-btn').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#stageChips .toggle-btn').forEach(b=>b.classList.remove('on'));
+  c.classList.add('on'); mapStageFilter=c.dataset.stage; renderZones();
+}));
+
+function initMapView(){
+  if(mapInited) return;
+  const status=document.getElementById('mapStatus');
+  if(typeof kakao==='undefined'||!kakao.maps){ status.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 여부 확인 후 새로고침)'; return; }
+  kakao.maps.load(()=>{
+    mapObj=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(37.5511,127.0409),level:6});
+    geocoder=new kakao.maps.services.Geocoder();
+    mapInfo=new kakao.maps.InfoWindow({removable:true});
+    mapInited=true;
+    loadZones(document.getElementById('mapGu').value);
+  });
+}
+
+async function loadZones(gu){
+  const status=document.getElementById('mapStatus');
+  status.textContent=`${gu} 정비사업 구역 불러오는 중…`;
+  clearMarkers(); mapZones=[];
+  try{
+    const res=await fetch(`/api/redevelopment?gu=${encodeURIComponent(gu)}`);
+    const data=await res.json();
+    if(!res.ok){ status.textContent=data.error||'조회 실패'; return; }
+    mapZones=data.zones||[];
+    status.textContent=`${gu} ${mapZones.length}개 구역 · 주소를 지도 좌표로 변환 중…`;
+    await geocodeZones(mapZones, gu);
+    renderZones();
+    const ok=mapZones.filter(z=>z.lat&&z.lng).length;
+    status.textContent=`${gu} ${mapZones.length}개 구역 표시 완료 (좌표 변환 ${ok}건).`;
+  }catch(e){ status.textContent='조회 중 오류: '+e.message; }
+}
+
+/* 주소→좌표 (카카오 지오코더). 순차 처리로 레이트리밋 회피. */
+function geocodeOne(addr){
+  return new Promise(resolve=>{
+    geocoder.addressSearch(addr,(result,st)=>{
+      if(st===kakao.maps.services.Status.OK&&result[0]) resolve({lat:+result[0].y,lng:+result[0].x});
+      else resolve(null);
+    });
+  });
+}
+async function geocodeZones(zones,gu){
+  for(const z of zones){
+    if(z.lat&&z.lng) continue;
+    let g=await geocodeOne(`서울 ${gu} ${z.address}`);
+    if(!g) g=await geocodeOne(`서울특별시 ${gu} ${z.address}`);
+    if(g){ z.lat=g.lat; z.lng=g.lng; }
+  }
+}
+
+function clearMarkers(){ mapMarkers.forEach(m=>m.setMap(null)); mapMarkers=[]; if(mapInfo)mapInfo.close(); }
+
+function renderZones(){
+  if(!mapInited) return;
+  clearMarkers();
+  const shown=mapZones.filter(z=>mapStageFilter==='all'||z.stage===mapStageFilter);
+  const bounds=new kakao.maps.LatLngBounds();
+  let plotted=0;
+  shown.forEach(z=>{
+    if(!z.lat||!z.lng) return;
+    const pos=new kakao.maps.LatLng(z.lat,z.lng);
+    const marker=new kakao.maps.Marker({position:pos,map:mapObj,image:dotImage(STAGE_COLOR[z.stage]||STAGE_COLOR.unknown)});
+    marker._zone=z;
+    kakao.maps.event.addListener(marker,'click',()=>openInfo(marker,z));
+    mapMarkers.push(marker); bounds.extend(pos); plotted++;
+  });
+  if(plotted) mapObj.setBounds(bounds);
+
+  const wrap=document.getElementById('zoneList'); wrap.innerHTML='';
+  document.getElementById('zoneCount').textContent=`${shown.length}개`;
+  shown.forEach(z=>{
+    const c=STAGE_COLOR[z.stage]||STAGE_COLOR.unknown;
+    const div=document.createElement('div'); div.className='zone-card';
+    div.innerHTML=`<div class="zone-name">${z.name}</div>
+      <div class="zone-meta"><span>${z.type||''}${z.address?' · '+z.address:''}</span>
+        <span class="zone-badge" style="background:${c}">${z.stageText||z.stageLabel||''}</span></div>`;
+    div.addEventListener('click',()=>{
+      if(z.lat&&z.lng){ mapObj.setLevel(4); mapObj.panTo(new kakao.maps.LatLng(z.lat,z.lng));
+        const mk=mapMarkers.find(m=>m._zone===z); if(mk) openInfo(mk,z); }
+    });
+    wrap.appendChild(div);
+  });
+}
+
+function openInfo(marker,z){
+  const c=STAGE_COLOR[z.stage]||STAGE_COLOR.unknown;
+  const link=z.detailUrl?`<a href="${z.detailUrl}" target="_blank" rel="noopener">상세 보기 ↗</a>`:'';
+  mapInfo.setContent(`<div class="iw"><div class="n">${z.name}</div>
+    <div class="m">${z.type||''}<br/><span style="color:${c};font-weight:600">${z.stageText||z.stageLabel||''}</span>${z.address?' · '+z.address:''}</div>
+    <div style="margin-top:6px">${link}</div></div>`);
+  mapInfo.open(mapObj,marker);
+}
+
+/* 단계 색 점 마커(SVG) */
+function dotImage(color){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="${color}" stroke="#fff" stroke-width="2.5"/></svg>`;
+  return new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa(svg),new kakao.maps.Size(22,22),{offset:new kakao.maps.Point(11,11)});
+}
 
 render();
 </script>
