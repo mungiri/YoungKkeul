@@ -702,9 +702,10 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
 /* 자치구 셀렉트(지도용) */
 (function initMapGu(){
   const sel=document.getElementById('mapGu');
+  const ph=document.createElement('option'); ph.value=''; ph.textContent='자치구 선택'; sel.appendChild(ph);
   SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
-  sel.value='성동구';
-  sel.addEventListener('change',()=>loadZones(sel.value));
+  sel.value='';   // 초기값 없음 — 사용자가 직접 선택해야 API 호출
+  sel.addEventListener('change',()=>{ if(sel.value) loadZones(sel.value); });
 })();
 
 /* 단계 필터 칩 */
@@ -724,11 +725,12 @@ function initMapView(){
     }catch(e){ status.textContent='지도 초기화 실패: '+e.message+' (카카오 앱에 이 도메인이 등록됐는지 확인하세요)'; return; }
     if(kakao.maps.services && kakao.maps.services.Geocoder){
       geocoder=new kakao.maps.services.Geocoder();
+      status.textContent='자치구를 선택하면 정비사업 구역을 표시합니다.';
     }else{
       status.textContent='카카오 지오코더(services)를 불러오지 못했습니다. 카카오 앱 > 플랫폼 > Web 사이트 도메인에 https://young-kkeul.vercel.app 등록 여부를 확인하세요.';
     }
     mapInited=true;
-    loadZones(document.getElementById('mapGu').value);
+    // 자동 로드 없음 — 사용자가 자치구를 선택할 때만 API 호출
   });
 }
 
@@ -808,14 +810,14 @@ function renderZones(){
   });
 }
 
-// 보장형 외부 링크: 정보몽땅 위치도(사업현황>위치도, 위치도 사진) + 상세 + 네이버 지도
+// 보장형 외부 링크: 정보몽땅 위치도(사업현황>위치도, 위치도 사진) + 상세 + 네이버 부동산
 function zoneLinks(z){
-  const mapQ=encodeURIComponent(`서울 ${z.gu||''} ${z.address||''}`.trim());
+  const landQ=encodeURIComponent(`${z.gu||''} ${z.address||''}`.trim());
   const parts=[];
   // 위치도: cafeUrl 슬러그로 서버리스 리다이렉트(/api/locimage)가 진짜 위치도 URL을 찾아 이동
   if(z.cafeUrl) parts.push(`<a href="/api/locimage?cafeUrl=${encodeURIComponent(z.cafeUrl)}" target="_blank" rel="noopener">🗺️ 위치도 ↗</a>`);
   if(z.detailUrl) parts.push(`<a href="${z.detailUrl}" target="_blank" rel="noopener">🏗️ 사업현황 ↗</a>`);
-  parts.push(`<a href="https://map.naver.com/p/search/${mapQ}" target="_blank" rel="noopener">📍 네이버지도 ↗</a>`);
+  parts.push(`<a href="https://m.land.naver.com/search/result/${landQ}" target="_blank" rel="noopener">🏠 네이버 부동산 ↗</a>`);
   return parts.join(' · ');
 }
 
