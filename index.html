@@ -208,6 +208,7 @@
     <div class="actions">
       <button class="act-btn" id="shareBtn">🔗 공유 링크 복사</button>
       <button class="act-btn" id="imgBtn">🖼️ 이미지 저장</button>
+      <button class="act-btn" id="resetBtn">🗑 입력 초기화</button>
     </div>
   </div>
 
@@ -255,7 +256,7 @@
     <div id="complexList" style="margin-top:8px;"></div>
   </div>
 
-  <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 저장되지 않습니다.</p>
+  <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 서버로 전송되지 않으며, 다음 방문 시 편의를 위해 이 브라우저에만 저장됩니다. (아래 ‘입력 초기화’로 삭제)</p>
   </div><!-- /viewCalc -->
 
   <!-- ===== 재개발 지도 뷰 ===== -->
@@ -423,6 +424,7 @@ function readInputs(){
   };
 }
 function render(){
+  saveState();   // 입력 바뀔 때마다 이 브라우저에 저장(다음 방문 복원용)
   // 초기값 없음: 현금·연봉 입력 전이면 계산하지 않고 대시 표시
   const cashRaw=document.getElementById('cash').value.trim();
   const incomeRaw=document.getElementById('income').value.trim();
@@ -630,7 +632,7 @@ function openComplexInfo(mk,c,gu){
 }
 let stationOnly=false;
 document.getElementById('stationFilter').addEventListener('click',function(){
-  stationOnly=!stationOnly; this.classList.toggle('on',stationOnly);
+  stationOnly=!stationOnly; this.classList.toggle('on',stationOnly); saveState();
 });
 document.getElementById('searchBtn').addEventListener('click',searchComplexes);
 
@@ -697,6 +699,37 @@ function syncToggle(group,val){
   document.getElementById(group).querySelectorAll('.toggle-btn')
     .forEach(b=>b.classList.toggle('on',b.dataset.val===val));
 }
+/* ===== 입력값 로컬 저장(localStorage) — 다음 방문 때 복원. 서버 전송 없음 ===== */
+const INPUT_KEY='ykk_inputs_v1';
+function saveState(){
+  try{
+    const g=id=>document.getElementById(id).value;
+    localStorage.setItem(INPUT_KEY, JSON.stringify({
+      cash:g('cash'),income:g('income'),coIncome:g('coIncome'),age:g('age'),
+      existingMortgage:g('existingMortgage'),otherDebt:g('otherDebt'),
+      fh:state.firstHome, rp:state.repayment,
+      gu:g('gu'), minHouseholds:g('minHouseholds'), station:stationOnly
+    }));
+  }catch(e){}
+}
+function restoreState(){
+  try{
+    const raw=localStorage.getItem(INPUT_KEY); if(!raw) return;
+    const s=JSON.parse(raw);
+    const set=(id,v)=>{ if(v!=null&&v!=='') document.getElementById(id).value=v; };
+    set('cash',s.cash);set('income',s.income);set('coIncome',s.coIncome);set('age',s.age);
+    set('existingMortgage',s.existingMortgage);set('otherDebt',s.otherDebt);set('minHouseholds',s.minHouseholds);
+    if(s.gu) document.getElementById('gu').value=s.gu;
+    if(s.fh!=null){ state.firstHome=s.fh; syncToggle('firstHome',String(s.fh)); }
+    if(s.rp){ state.repayment=s.rp; syncToggle('repayment',s.rp); }
+    if(s.station){ stationOnly=true; document.getElementById('stationFilter').classList.add('on'); }
+  }catch(e){}
+}
+// gu·세대수는 render를 거치지 않으므로 별도 저장 바인딩
+document.getElementById('gu').addEventListener('change',saveState);
+document.getElementById('minHouseholds').addEventListener('input',saveState);
+restoreState();   // 저장된 입력 복원(공유링크 해시가 있으면 아래 applyHash가 덮어씀)
+
 (function applyHash(){
   if(!location.hash) return;
   const p=new URLSearchParams(location.hash.slice(1));
@@ -712,6 +745,14 @@ document.getElementById('shareBtn').addEventListener('click',async function(){
   catch(e){ /* 클립보드 불가시 주소창에라도 반영 */ }
   history.replaceState(null,'',url);
   const b=this, t=b.textContent; b.textContent='✓ 복사됨'; setTimeout(()=>b.textContent=t,1600);
+});
+document.getElementById('resetBtn').addEventListener('click',function(){
+  try{ localStorage.removeItem(INPUT_KEY); }catch(e){}
+  ['cash','income','coIncome','age','existingMortgage','otherDebt'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('gu').value=''; document.getElementById('minHouseholds').value='0';
+  stationOnly=false; document.getElementById('stationFilter').classList.remove('on');
+  render();
+  const b=this,t=b.textContent; b.textContent='✓ 초기화됨'; setTimeout(()=>b.textContent=t,1400);
 });
 document.getElementById('imgBtn').addEventListener('click',function(){
   const r=maxAffordable(readInputs());
