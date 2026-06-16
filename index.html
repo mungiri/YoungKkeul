@@ -176,7 +176,6 @@
   <div id="viewCalc">
   <div>
     <div class="eyebrow">영끌컷 · 자력 독립 마지노선</div>
-    <h1>내 자산으로 풀 대출 받으면<br/>어디까지 살 수 있나</h1>
     <p class="lede">보유 현금과 소득을 넣으면 부대비용까지 제하고 매수 가능한 최대 가격을 역산합니다. 보금자리론(6억 이하)과 일반 주담대를 자동 비교합니다.</p>
   </div>
 
@@ -290,7 +289,6 @@
   <div id="viewMap" style="display:none;">
     <div>
       <div class="eyebrow">재개발 지도 · 서울 정비사업</div>
-      <h1>우리 동네 재개발<br/>어디까지 왔나</h1>
       <p class="lede">서울시 정비사업 정보몽땅 기준, 자치구별 재개발·재건축 구역을 진행 단계별로 지도에 표시합니다. 마커나 목록을 누르면 상세 정보로 이동합니다.</p>
     </div>
 
@@ -329,7 +327,6 @@
   <div id="viewArea" style="display:none;">
     <div>
       <div class="eyebrow">상권 분석 · 동네 분위기</div>
-      <h1>이 주소 주변엔<br/>뭐가 얼마나 있나</h1>
       <p class="lede">주소(또는 장소명)를 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줍니다. 전국 어디든 됩니다.</p>
     </div>
 
@@ -367,6 +364,10 @@
       <div class="res-label" style="margin-bottom:4px;">주변 점포 지도</div>
       <div class="hint" style="margin-bottom:6px;">업종 대분류별 색으로 표시. 마커를 누르면 상호·업종이 보입니다.</div>
       <div id="areaMap"></div>
+      <div class="actions" id="areaLegendBtns" style="display:none; margin-top:12px;">
+        <button class="act-btn" id="areaSelAll">전체 선택</button>
+        <button class="act-btn" id="areaSelNone">전체 해제</button>
+      </div>
       <div class="legend" id="areaLegend" style="margin-top:12px;"></div>
       <div class="legend-hint" id="areaLegendHint"></div>
     </div>
@@ -408,12 +409,12 @@
 <div class="modal-ov" id="whatsnew">
   <div class="modal" role="dialog" aria-modal="true" aria-label="업데이트 안내">
     <h2>이번 업데이트 ✨</h2>
-    <div class="m-sub">재개발 지도와 매물 지도가 새로 들어왔어요.</div>
-    <div class="feat"><div class="ic">🏗️</div><div><div class="ft">재개발 지도 탭 추가</div><div class="fd">서울 자치구별 재개발·재건축 정비사업 구역을 진행 단계별 색상 마커로 표시. (정보몽땅 공식 기준)</div></div></div>
-    <div class="feat"><div class="ic">🗺️</div><div><div class="ft">구역별 위치도 · 사업현황 바로가기</div><div class="fd">마커를 누르면 정보몽땅 위치도(사진)·사업현황 페이지로 바로 이동.</div></div></div>
-    <div class="feat"><div class="ic">🏠</div><div><div class="ft">네이버 부동산 빌라·주택 연결</div><div class="fd">재개발 지구 특성에 맞춰 그 위치의 빌라·주택 매물 지도로 연결.</div></div></div>
-    <div class="feat"><div class="ic">📍</div><div><div class="ft">매물 결과를 지도로</div><div class="fd">영끌 계산기에서 찾은 단지들을 카카오맵 위에 마커로 한눈에.</div></div></div>
-    <div class="feat"><div class="ic">✏️</div><div><div class="ft">깔끔한 빈 화면 시작</div><div class="fd">불필요한 기본값을 없애 직접 입력·선택할 때만 조회합니다.</div></div></div>
+    <div class="m-sub">주변 상권 분석 탭이 새로 들어왔어요.</div>
+    <div class="feat"><div class="ic">🏙️</div><div><div class="ft">상권 분석 탭 추가</div><div class="fd">주소나 장소명만 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줘요. 전국 어디든.</div></div></div>
+    <div class="feat"><div class="ic">🗺️</div><div><div class="ft">업종별 지도 토글</div><div class="fd">주변 점포를 업종 그룹별 색으로 표시하고, 범례를 눌러 켜고 끄기 · 전체 선택/해제까지.</div></div></div>
+    <div class="feat"><div class="ic">📊</div><div><div class="ft">서울 상권 심화(행정동)</div><div class="fd">서울 주소는 행정동 추정매출·유동인구·개폐업률·주 소비층까지 한 단계 더 깊게.</div></div></div>
+    <div class="feat"><div class="ic">🏷️</div><div><div class="ft">한눈에 읽히게</div><div class="fd">업종 비중 높음/보통/낮음 표시, 시간대 1시간당 평균 환산 등 가독성을 다듬었어요.</div></div></div>
+    <div style="text-align:center; margin:18px 0 2px; font-size:15px; font-weight:600; color:var(--gold); letter-spacing:.2px;">나연 ♥</div>
     <div class="modal-foot">
       <label><input type="checkbox" id="wnDont"> 다시 보지 않기</label>
       <button class="close-btn" id="wnClose">닫기</button>
@@ -893,7 +894,7 @@ document.getElementById('imgBtn').addEventListener('click',function(){
 
 /* ===== 업데이트 안내 모달 (다시 보지 않기 = localStorage) ===== */
 (function whatsNew(){
-  const KEY='ykk_whatsnew_v2';
+  const KEY='ykk_whatsnew_v3';
   const ov=document.getElementById('whatsnew');
   try{ if(localStorage.getItem(KEY)) return; }catch(e){}
   ov.classList.add('show');
@@ -1354,21 +1355,33 @@ function drawAreaMap(data, loc){
   const groups=groupByLcls(data.byLcls);
   const lg=document.getElementById('areaLegend'); lg.innerHTML='';
   groups.forEach(row=>{
-    const s=document.createElement('span'); s.className='tog';
+    const s=document.createElement('span'); s.className='tog'; s.dataset.group=row.name;
     s.innerHTML=`<i style="background:${colorForLcls(row.name)}"></i>${row.name} <b style="font-weight:600">${row.count.toLocaleString()}</b>`;
     s.addEventListener('click',()=>toggleAreaGroup(row.name, s));
     lg.appendChild(s);
   });
+  document.getElementById('areaLegendBtns').style.display='flex';
   document.getElementById('areaLegendHint').textContent='💡 업종을 눌러 지도에서 켜고 끌 수 있어요.';
 }
 
+function paintTog(spanEl, off){
+  spanEl.style.opacity=off?0.4:1;
+  spanEl.style.textDecoration=off?'line-through':'none';
+}
 function toggleAreaGroup(g, spanEl){
   if(areaHiddenGroups.has(g)) areaHiddenGroups.delete(g); else areaHiddenGroups.add(g);
   const off=areaHiddenGroups.has(g);
-  spanEl.style.opacity=off?0.4:1;
-  spanEl.style.textDecoration=off?'line-through':'none';
+  paintTog(spanEl, off);
   areaStoreMarkers.forEach(o=>{ if(o.group===g) o.marker.setMap(off?null:areaMap); });
 }
+function setAllAreaGroups(hidden){
+  const spans=document.querySelectorAll('#areaLegend span.tog');
+  areaHiddenGroups = hidden ? new Set([...spans].map(s=>s.dataset.group)) : new Set();
+  spans.forEach(s=>paintTog(s, hidden));
+  areaStoreMarkers.forEach(o=>o.marker.setMap(hidden?null:areaMap));
+}
+document.getElementById('areaSelAll').addEventListener('click',()=>setAllAreaGroups(false));
+document.getElementById('areaSelNone').addEventListener('click',()=>setAllAreaGroups(true));
 
 function areaDot(color){
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="4.5" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
