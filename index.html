@@ -132,6 +132,24 @@
   .iw .n{font-size:14px; font-weight:600; color:#1d1d1f; margin-bottom:4px; line-height:1.35;}
   .iw .m{font-size:12px; color:#6e6e73; line-height:1.55;}
   .iw a{color:#0066cc; font-size:12px; font-weight:600; text-decoration:none;}
+  /* ===== 상권 분석 뷰 ===== */
+  #areaMap{width:100%; height:380px; border-radius:18px; border:1px solid var(--line); background:#e8e8ed; margin-top:6px;}
+  .vibe-headline{font-size:24px; font-weight:600; letter-spacing:-.4px; color:var(--ink); line-height:1.2;}
+  .vibe-tags{display:flex; flex-wrap:wrap; gap:7px; margin-top:12px;}
+  .vibe-tag{display:inline-block; padding:5px 12px; border-radius:9999px; font-size:13px; font-weight:600; background:var(--tint); color:var(--gold); border:1px solid rgba(0,102,204,.18);}
+  /* 업종 구성 가로 막대 */
+  .barlist{margin-top:6px;}
+  .barrow{display:flex; align-items:center; gap:10px; padding:7px 0;}
+  .barrow .bn{flex:0 0 96px; font-size:13px; color:var(--sub); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .barrow .bt{flex:1; height:8px; background:var(--track); border-radius:9999px; overflow:hidden;}
+  .barrow .bf{height:100%; background:var(--gold); border-radius:9999px;}
+  .barrow .bc{flex:0 0 52px; text-align:right; font-size:13px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
+  /* 파생 지표 칩 그리드 */
+  .derived-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:4px;}
+  .dchip{background:var(--bg); border-radius:12px; padding:12px 10px; text-align:center;}
+  .dchip .di{font-size:18px;}
+  .dchip .dv{font-size:18px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; margin-top:2px;}
+  .dchip .dk{font-size:11px; color:var(--dim); margin-top:1px;}
   @media (max-width:560px){
     body{padding:28px 16px;}
     .grid2{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;}
@@ -146,6 +164,7 @@
   <div class="tabs">
     <button class="tab on" data-view="viewCalc">💰 영끌 계산기</button>
     <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
+    <button class="tab" data-view="viewArea">🏙️ 상권 분석</button>
   </div>
   <div id="viewCalc">
   <div>
@@ -298,6 +317,62 @@
 
     <p class="disclaimer">서울시 정비사업 정보몽땅(cleanup.seoul.go.kr) 사업장검색 기준. 진행단계는 원본 텍스트를 자동 분류한 것으로 실제와 다를 수 있으며, 지도 위치는 대표지번 주소를 지오코딩한 근사값입니다. 투자 판단의 단독 근거로 삼지 마세요.</p>
   </div><!-- /viewMap -->
+
+  <!-- ===== 상권 분석 뷰 ===== -->
+  <div id="viewArea" style="display:none;">
+    <div>
+      <div class="eyebrow">상권 분석 · 동네 분위기</div>
+      <h1>이 주소 주변엔<br/>뭐가 얼마나 있나</h1>
+      <p class="lede">주소(또는 장소명)를 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줍니다. 전국 어디든 됩니다.</p>
+    </div>
+
+    <div class="panel">
+      <label class="field"><div class="flabel">분석할 주소 / 장소</div>
+        <div class="frow"><input id="areaAddr" type="text" placeholder="예: 서울 마포구 와우산로 94 · 성수동 카페거리" style="font-size:18px; font-weight:500;"></div>
+        <div class="hint">도로명·지번 주소 또는 건물·동 이름</div></label>
+      <div class="toggle-group"><div class="flabel">분석 반경</div>
+        <div class="toggle-row" id="areaRadius">
+          <button class="toggle-btn" data-r="250">250m</button>
+          <button class="toggle-btn on" data-r="500">500m</button>
+          <button class="toggle-btn" data-r="1000">1km</button>
+        </div></div>
+      <button id="areaBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 동네 상권 분석하기</button>
+      <div id="areaStatus" class="hint" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- 동네 분위기 요약 -->
+    <div class="panel" id="areaVibePanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:10px;">동네 분위기</div>
+      <div class="vibe-headline" id="areaHeadline">–</div>
+      <div class="vibe-tags" id="areaTags"></div>
+      <div class="grid3" style="margin-top:18px;">
+        <div class="stat"><div class="k">반경 내 점포</div><div class="v" id="areaTotal">–</div></div>
+        <div class="stat"><div class="k">점포 밀도(/㎢)</div><div class="v" id="areaDensity">–</div></div>
+        <div class="stat"><div class="k">업종 다양성</div><div class="v" id="areaDiversity">–</div></div>
+      </div>
+      <div style="margin-top:16px;">
+        <div class="derived-grid" id="areaDerived"></div>
+      </div>
+    </div>
+
+    <!-- 지도 -->
+    <div class="panel" id="areaMapPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:4px;">주변 점포 지도</div>
+      <div class="hint" style="margin-bottom:6px;">업종 대분류별 색으로 표시. 마커를 누르면 상호·업종이 보입니다.</div>
+      <div id="areaMap"></div>
+      <div class="legend" id="areaLegend" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- 업종 구성 -->
+    <div class="panel" id="areaCompPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:8px;">업종 구성 (대분류)</div>
+      <div class="barlist" id="areaLcls"></div>
+      <div class="res-label" style="margin:18px 0 8px;">세부 업종 TOP (중분류)</div>
+      <div class="barlist" id="areaMcls"></div>
+    </div>
+
+    <p class="disclaimer">소상공인시장진흥공단 상가(상권)정보 기준(분기 갱신). 신규·폐업 반영에 시차가 있고 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기 라벨은 표본 기반 자동 추정으로 참고용입니다.</p>
+  </div><!-- /viewArea -->
 
 <!-- 업데이트 안내 모달 -->
 <div class="modal-ov" id="whatsnew">
@@ -830,7 +905,9 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   const view=t.dataset.view;
   document.getElementById('viewCalc').style.display = view==='viewCalc'?'':'none';
   document.getElementById('viewMap').style.display  = view==='viewMap' ?'':'none';
+  document.getElementById('viewArea').style.display = view==='viewArea'?'':'none';
   if(view==='viewMap') initMapView();
+  if(view==='viewArea') initAreaView();
 }));
 
 /* 자치구 셀렉트(지도용) */
@@ -971,6 +1048,179 @@ function openInfo(marker,z){
 function dotImage(color){
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="${color}" stroke="#fff" stroke-width="2.5"/></svg>`;
   return new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa(svg),new kakao.maps.Size(22,22),{offset:new kakao.maps.Point(11,11)});
+}
+
+/* ===================== 상권 분석 뷰 ===================== */
+let areaMap=null, areaInfo=null, areaMarkers=[], areaCircle=null, areaCenter=null,
+    areaInited=false, areaRadius=500, areaBusy=false, areaPlaces=null;
+
+// 대분류 색 팔레트(동적 배정) — 카카오 마커/범례 공유
+const AREA_PALETTE=['#0066cc','#1d8a4e','#e8820c','#c4362e','#8e44ad','#0aa2c0','#d6336c','#6e6e73','#5c7cfa','#2b8a3e'];
+let areaColorMap={};
+function colorForLcls(name){
+  if(areaColorMap[name]) return areaColorMap[name];
+  const c=AREA_PALETTE[Object.keys(areaColorMap).length % AREA_PALETTE.length];
+  areaColorMap[name]=c; return c;
+}
+
+function initAreaView(){
+  if(areaInited) return;
+  const status=document.getElementById('areaStatus');
+  withKakao((ok)=>{
+    if(!ok){ status.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 여부 확인 후 새로고침)'; return; }
+    try{
+      areaMap=new kakao.maps.Map(document.getElementById('areaMap'),{center:new kakao.maps.LatLng(37.5547,126.9707),level:5});
+      areaInfo=new kakao.maps.InfoWindow({removable:true});
+      if(kakao.maps.services && kakao.maps.services.Places) areaPlaces=new kakao.maps.services.Places();
+    }catch(e){ status.textContent='지도 초기화 실패: '+e.message; return; }
+    areaInited=true;
+    status.textContent='주소나 장소명을 넣고 분석 버튼을 누르세요.';
+  });
+}
+
+/* 반경 토글 */
+document.querySelectorAll('#areaRadius .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#areaRadius .toggle-btn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); areaRadius=Number(b.dataset.r)||500;
+}));
+document.getElementById('areaBtn').addEventListener('click',runAreaAnalysis);
+document.getElementById('areaAddr').addEventListener('keydown',(e)=>{ if(e.key==='Enter') runAreaAnalysis(); });
+
+/* 주소(또는 장소명) → 좌표. 지오코더 우선, 실패 시 키워드 검색 폴백. */
+function resolveLocation(query){
+  return new Promise((resolve)=>{
+    if(!geocoder){ resolve(null); return; }
+    geocoder.addressSearch(query,(result,st)=>{
+      if(st===kakao.maps.services.Status.OK && result[0]){
+        resolve({lat:+result[0].y, lng:+result[0].x, label:result[0].address_name||query});
+      }else if(areaPlaces){
+        areaPlaces.keywordSearch(query,(data,st2)=>{
+          if(st2===kakao.maps.services.Status.OK && data[0]){
+            resolve({lat:+data[0].y, lng:+data[0].x, label:data[0].place_name||query});
+          }else resolve(null);
+        });
+      }else resolve(null);
+    });
+  });
+}
+
+async function runAreaAnalysis(){
+  if(areaBusy) return;
+  const status=document.getElementById('areaStatus');
+  const q=document.getElementById('areaAddr').value.trim();
+  if(!q){ status.textContent='분석할 주소나 장소명을 입력하세요.'; return; }
+  if(!areaInited){ initAreaView(); }
+  areaBusy=true; status.textContent='주소를 좌표로 변환 중…';
+  try{
+    const loc=await resolveLocation(q);
+    if(!loc){ status.textContent='주소/장소를 찾지 못했습니다. 도로명 주소나 더 구체적인 장소명으로 다시 시도하세요.'; areaBusy=false; return; }
+    areaCenter=loc;
+    status.textContent=`"${loc.label}" 반경 ${areaRadius<1000?areaRadius+'m':'1km'} 상권 분석 중…`;
+    const res=await fetch(`/api/commerce?lng=${loc.lng}&lat=${loc.lat}&radius=${areaRadius}`);
+    const data=await res.json();
+    if(!res.ok){ status.textContent=(data.error||'분석 실패')+(data.hint?` — ${data.hint}`:''); areaBusy=false; return; }
+    renderArea(data, loc);
+    status.textContent=`완료 · 반경 내 ${data.total.toLocaleString()}개 점포${data.partial?` (표본 ${data.analyzed.toLocaleString()}개 분석)`:''}.`;
+  }catch(e){ status.textContent='분석 중 오류: '+e.message; }
+  areaBusy=false;
+}
+
+const DERIVED_VIEW=[
+  {key:'cafe',ic:'☕',label:'카페·디저트'},
+  {key:'restaurant',ic:'🍽️',label:'음식점'},
+  {key:'bar',ic:'🍺',label:'술집·유흥'},
+  {key:'convenience',ic:'🛒',label:'생활·편의'},
+  {key:'medical',ic:'🏥',label:'의료'},
+  {key:'education',ic:'📚',label:'학원·교육'},
+];
+
+function renderArea(data, loc){
+  areaColorMap={};   // 분석마다 색 재배정
+  document.getElementById('areaVibePanel').style.display='';
+  document.getElementById('areaMapPanel').style.display='';
+  document.getElementById('areaCompPanel').style.display='';
+
+  // 분위기 요약
+  document.getElementById('areaHeadline').textContent=data.vibe.headline||'특징 뚜렷하지 않음';
+  const tagWrap=document.getElementById('areaTags'); tagWrap.innerHTML='';
+  (data.vibe.tags||[]).forEach(t=>{ const s=document.createElement('span'); s.className='vibe-tag'; s.textContent=t; tagWrap.appendChild(s); });
+  document.getElementById('areaTotal').textContent=data.total.toLocaleString();
+  document.getElementById('areaDensity').textContent=data.density.toLocaleString();
+  document.getElementById('areaDiversity').textContent=`${Math.round(data.diversity*100)}%`;
+
+  // 파생 지표 칩
+  const dWrap=document.getElementById('areaDerived'); dWrap.innerHTML='';
+  DERIVED_VIEW.forEach(d=>{
+    const v=(data.derived&&data.derived[d.key])||0;
+    const el=document.createElement('div'); el.className='dchip';
+    el.innerHTML=`<div class="di">${d.ic}</div><div class="dv">${v.toLocaleString()}</div><div class="dk">${d.label}</div>`;
+    dWrap.appendChild(el);
+  });
+
+  // 업종 구성 막대(대분류) — 색은 마커와 공유
+  renderBars(document.getElementById('areaLcls'), data.byLcls, data.analyzed, true);
+  // 세부 업종(중분류)
+  renderBars(document.getElementById('areaMcls'), data.byMcls, data.analyzed, false);
+
+  // 지도 마커
+  drawAreaMap(data, loc);
+}
+
+function renderBars(wrap, list, total, useColor){
+  wrap.innerHTML='';
+  const max=list.length?list[0].count:1;
+  list.forEach(row=>{
+    const pct=Math.round((row.count/max)*100);
+    const share=total?Math.round((row.count/total)*100):0;
+    const color=useColor?colorForLcls(row.name):'var(--gold)';
+    const div=document.createElement('div'); div.className='barrow';
+    div.innerHTML=`<div class="bn">${row.name}</div>
+      <div class="bt"><div class="bf" style="width:${pct}%;background:${color}"></div></div>
+      <div class="bc">${row.count.toLocaleString()}<span style="color:var(--dim);font-weight:400"> ${share}%</span></div>`;
+    wrap.appendChild(div);
+  });
+}
+
+function clearAreaMarkers(){ areaMarkers.forEach(m=>m.setMap(null)); areaMarkers=[]; if(areaInfo)areaInfo.close(); if(areaCircle){areaCircle.setMap(null);areaCircle=null;} }
+
+function drawAreaMap(data, loc){
+  if(!areaInited||!areaMap) return;
+  clearAreaMarkers();
+  const center=new kakao.maps.LatLng(loc.lat, loc.lng);
+  areaMap.setCenter(center);
+  // 반경 원
+  areaCircle=new kakao.maps.Circle({center, radius:data.query.radius, strokeWeight:1.5, strokeColor:'#0066cc', strokeOpacity:.5, fillColor:'#0066cc', fillOpacity:.05});
+  areaCircle.setMap(areaMap);
+  // 중심 핀
+  const c0=new kakao.maps.Marker({position:center, map:areaMap});
+  areaMarkers.push(c0);
+  // 점포 마커(대분류 색)
+  (data.markers||[]).forEach(p=>{
+    const pos=new kakao.maps.LatLng(p.lat, p.lng);
+    const mk=new kakao.maps.Marker({position:pos, map:areaMap, image:areaDot(colorForLcls(p.lcls))});
+    kakao.maps.event.addListener(mk,'click',()=>{
+      areaInfo.setContent(`<div class="iw"><div class="n">${p.name||'(상호미상)'}</div><div class="m">${p.lcls||''}${p.mcls?' · '+p.mcls:''}</div></div>`);
+      areaInfo.open(areaMap, mk);
+    });
+    areaMarkers.push(mk);
+  });
+  // 반경에 맞춰 줌
+  const lvl=data.query.radius>=1000?6:(data.query.radius>=500?5:4);
+  areaMap.setLevel(lvl);
+  setTimeout(()=>areaMap.relayout&&areaMap.relayout(),60);
+
+  // 범례(대분류 색)
+  const lg=document.getElementById('areaLegend'); lg.innerHTML='';
+  data.byLcls.slice(0,8).forEach(row=>{
+    const s=document.createElement('span');
+    s.innerHTML=`<i style="background:${colorForLcls(row.name)}"></i>${row.name}`;
+    lg.appendChild(s);
+  });
+}
+
+function areaDot(color){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="4.5" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+  return new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa(svg),new kakao.maps.Size(14,14),{offset:new kakao.maps.Point(7,7)});
 }
 
 render();
