@@ -1,215 +1,203 @@
 /**
  * 영끌컷 · 재개발/재건축(정비사업) 구역 조회 서버리스 엔드포인트
  * =====================================================
- * 서울 열린데이터광장 "서울시 재개발·재건축 정비사업 현황"(OA-2253) OpenAPI를 호출해
- * 지도에 찍을 수 있는 정비사업 구역 목록 + 사업단계 분류를 반환한다.
+ * 데이터 원천: 서울시 "정비사업 정보몽땅"(cleanup.seoul.go.kr) 사업장검색.
+ *   - 당초 서울 열린데이터광장 OA-2253 OpenAPI를 쓰려 했으나 2025.12 폐기됨.
+ *   - 정보몽땅의 사업장목록 AJAX 엔드포인트(lsubBsnsSttus.do)는 공개(무인증)이고
+ *     자치구 코드별로 전체 구역 목록을 HTML 테이블로 돌려준다 → 파싱해서 사용.
  *
  * 아키텍처 원칙(기존 transactions.js와 동일):
- *   - API 키는 프론트 노출 금지 → Vercel 환경변수 SEOUL_API_KEY 로만 접근.
- *     (서울 열린데이터광장 키는 data.go.kr MOLIT 키와 별개로 발급)
- *   - 의존성 0. fetch + 수동 파싱.
- *   - 업스트림이 느려도 함수가 행에 걸리지 않도록 timedFetch.
+ *   - 의존성 0. fetch + 정규식 파싱.
+ *   - 업스트림 지연 대비 timedFetch + 동시호출 제한 mapLimit.
+ *   - 인증키 불필요(정보몽땅 공개 데이터).
  *
- * 환경변수:
- *   SEOUL_API_KEY = data.seoul.go.kr 에서 발급한 인증키
- *     (https://data.seoul.go.kr/together/guide/useGuide.do → 인증키 신청, 즉시 발급)
+ * ⚠️ 좌표(위/경도)는 원천에 없음 → 프론트에서 카카오 지오코딩(대표지번 주소→좌표)으로 보완.
  *
- * 서울 열린데이터광장 OpenAPI 호출 규격:
- *   http://openapi.seoul.go.kr:8088/{KEY}/json/{SERVICE}/{START}/{END}/[조건...]
- *   성공코드: RESULT.CODE === 'INFO-000'
- *
- * ⚠️ OA-2253의 정확한 "서비스명"과 출력 필드명은 라이브 호출로 확정해야 한다.
- *    → service 쿼리파라미터로 서비스명을 바꿔가며 시도 가능(재배포 불필요).
- *    → probe=1 이면 원본 응답/첫 row의 키 목록을 그대로 반환(진단용).
+ * 엔드포인트(역설계):
+ *   POST/GET https://cleanup.seoul.go.kr/cleanup/bsnssttus/lsubBsnsSttus.do
+ *     scupBsnsSttus.signguCode = 자치구 법정동코드 5자리(예: 11200 성동구)
+ *     pageSize = 500            (한 번에 전체 행 수신; 기본 10이라 반드시 지정)
+ *   응답: HTML 조각. 행당 10셀 = 번호·자치구·사업구분·사업장명·대표지번·진행단계·공개자료수·공개적시성·자료충실도·이동
+ *         '이동' 셀의 cafeOpenPopup('slug') → 상세 카페 URL 슬러그.
  *
  * 호출 예:
- *   /api/redevelopment?probe=1                 (필드 진단: 첫 row 원본 키 확인)
- *   /api/redevelopment?gu=성동구               (자치구 필터)
- *   /api/redevelopment?service=OtherServiceNm  (서비스명 교체 시도)
+ *   /api/redevelopment?gu=성동구            (한 자치구)
+ *   /api/redevelopment?gu=all               (서울 25개구 전체 — 느릴 수 있음)
+ *   /api/redevelopment?gu=성동구&stage=late  (단계 필터)
+ *   /api/redevelopment?gu=성동구&probe=1     (원본 HTML 진단)
  *
  * 쿼리 파라미터:
- *   gu       (선택) 서울 자치구 이름. 예: "성동구". 미지정 시 전체.
- *   stage    (선택) 단계 카테고리 필터: planned|ongoing|late|done
- *   service  (선택) Open API 서비스명 override. 기본 DEFAULT_SERVICE.
- *   start    (선택) 조회 시작 인덱스. 기본 1.
- *   end      (선택) 조회 종료 인덱스. 기본 1000(서울 API 단일호출 상한).
- *   probe    (선택) 1이면 진단 모드(원본 응답 키 노출).
+ *   gu     (필수) 서울 자치구 이름 또는 'all'. (또는 signguCode 5자리 직접 전달)
+ *   stage  (선택) 단계 카테고리 필터: planned|ongoing|late|done
+ *   probe  (선택) 1이면 원본 HTML 앞부분/행 수 진단.
  */
 
-// OA-2253 서비스명 추정값. 라이브 확정 전까지 기본값으로 사용하며,
-// 틀리면 service= 쿼리파라미터로 교체하거나 probe로 확인 후 여기를 고친다.
-const DEFAULT_SERVICE = 'DefRedevelopmentArea'; // ← 라이브 확정 필요(임시 추정)
+// 서울 25개 자치구 → 법정동코드 앞 5자리(transactions.js와 동일)
+const SEOUL_LAWD = {
+  '종로구': '11110', '중구': '11140', '용산구': '11170', '성동구': '11200',
+  '광진구': '11215', '동대문구': '11230', '중랑구': '11260', '성북구': '11290',
+  '강북구': '11305', '도봉구': '11320', '노원구': '11350', '은평구': '11380',
+  '서대문구': '11410', '마포구': '11440', '양천구': '11470', '강서구': '11500',
+  '구로구': '11530', '금천구': '11545', '영등포구': '11560', '동작구': '11590',
+  '관악구': '11620', '서초구': '11650', '강남구': '11680', '송파구': '11710',
+  '강동구': '11740',
+};
 
-const SEOUL_BASE = 'http://openapi.seoul.go.kr:8088';
-
-// 서울 25개 자치구(필터 검증용)
-const SEOUL_GU = [
-  '종로구','중구','용산구','성동구','광진구','동대문구','중랑구','성북구','강북구','도봉구',
-  '노원구','은평구','서대문구','마포구','양천구','강서구','구로구','금천구','영등포구','동작구',
-  '관악구','서초구','강남구','송파구','강동구',
-];
+const LIST_URL = 'https://cleanup.seoul.go.kr/cleanup/bsnssttus/lsubBsnsSttus.do';
+const CAFE_URL = 'https://cleanup.seoul.go.kr/cafe/mainIndx.do?cafeUrl='; // + slug
 
 const config = { maxDuration: 30 };
 module.exports.config = config;
 
-// 타임아웃 있는 fetch
-async function timedFetch(url, ms) {
+async function timedFetch(url, ms, opts) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
-  try { return await fetch(url, { signal: ac.signal }); }
+  try { return await fetch(url, { ...(opts || {}), signal: ac.signal }); }
   finally { clearTimeout(t); }
 }
 
-// 후보 키 목록 중 row에 실제 존재하는 첫 값을 꺼낸다(필드명 불확실성 흡수).
-function pick(row, candidates) {
-  for (const c of candidates) {
-    if (row[c] != null && String(row[c]).trim() !== '') return String(row[c]).trim();
-  }
-  // 대소문자/공백 무시 매칭 fallback
-  const norm = (s) => String(s).replace(/[\s_]/g, '').toLowerCase();
-  const wanted = candidates.map(norm);
-  for (const k of Object.keys(row)) {
-    if (wanted.includes(norm(k)) && String(row[k]).trim() !== '') return String(row[k]).trim();
-  }
-  return null;
+// 동시 실행 개수 제한 (전체 25개구 조회 시 폭주 방지)
+async function mapLimit(items, limit, fn) {
+  const ret = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; ret[idx] = await fn(items[idx], idx); }
+  });
+  await Promise.all(workers);
+  return ret;
 }
 
-// 사업단계 문자열 → 카테고리(예정/진행중/후기/완료). 키워드 기반.
-function classifyStage(stageText) {
-  const s = (stageText || '').replace(/\s/g, '');
-  if (!s) return 'unknown';
-  if (/(준공|해산|청산|완료)/.test(s)) return 'done';
-  if (/(착공|관리처분|이주|철거)/.test(s)) return 'late';
-  if (/(사업시행인가|조합설립|시공자선정|건축심의|사업시행)/.test(s)) return 'ongoing';
-  if (/(예정구역|정비구역지정|기본계획|추진위|구역지정|후보지)/.test(s)) return 'planned';
-  return 'ongoing'; // 분류 못 하면 진행중 취급
+// 진행단계 텍스트 → 카테고리. 순서 중요(done/late를 ongoing보다 먼저 판정).
+function classifyStage(s) {
+  const t = (s || '').replace(/\s/g, '');
+  if (!t) return 'unknown';
+  if (/(준공|조합해산|조합청산|해산|청산|완료|이전고시)/.test(t)) return 'done';
+  if (/(관리처분|이주|철거|착공)/.test(t)) return 'late';
+  if (/(조합설립|사업시행|시공자|건축심의)/.test(t)) return 'ongoing';
+  if (/(정비계획|정비구역지정|구역지정|기본계획|추진위|추진주체|후보지|예정구역)/.test(t)) return 'planned';
+  return 'ongoing';
 }
 
 const STAGE_LABEL = {
-  planned: '진행 예정', ongoing: '진행 중', late: '후기 단계', done: '완료', unknown: '미상',
+  planned: '진행 예정', ongoing: '진행 중', late: '후기 단계(관리처분~착공)', done: '완료/청산', unknown: '미상',
 };
 
-// 서울 OpenAPI 응답 파싱 → { rows, totalCount, error, code, raw }
-function parseSeoul(json, service) {
-  const svc = json[service] || json[Object.keys(json).find((k) => json[k] && json[k].row)] || null;
-  if (!svc) {
-    // RESULT envelope만 온 경우(키 오류 등)
-    const r = json.RESULT || {};
-    return { error: r.MESSAGE || '예상치 못한 응답 구조', code: r.CODE || null, rows: [] };
+// HTML 셀에서 텍스트만 추출(태그 제거·공백 정리)
+function cellText(td) {
+  return td.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// 정보몽땅 사업장목록 HTML 조각 → 구역 객체 배열
+function parseZones(html) {
+  const m = html.match(/<tbody[\s\S]*?<\/tbody>/);
+  if (!m) return [];
+  const rows = m[0].match(/<tr[\s\S]*?<\/tr>/g) || [];
+  const zones = [];
+  for (const r of rows) {
+    const cells = r.match(/<td[\s\S]*?<\/td>/g) || [];
+    if (cells.length < 6) continue; // "데이터 없음" 행 등 스킵
+    const name = cellText(cells[3]);
+    if (!name) continue;
+    const stageText = cellText(cells[5]);
+    const slugM = r.match(/cafeOpenPopup\('([^']+)'\)/);
+    const stage = classifyStage(stageText);
+    zones.push({
+      gu: cellText(cells[1]),
+      type: cellText(cells[2]),     // 사업구분(재개발/재건축/도시정비형 등)
+      name,                          // 사업장명(구역명)
+      address: cellText(cells[4]),   // 대표지번 → 카카오 지오코딩용
+      stageText,                     // 원본 진행단계
+      stage,                         // 분류 카테고리
+      stageLabel: STAGE_LABEL[stage],
+      detailUrl: slugM ? CAFE_URL + slugM[1] : null,
+      lat: null, lng: null,          // 원천에 좌표 없음 → 프론트 지오코딩
+    });
   }
-  const result = svc.RESULT || {};
-  if (result.CODE && result.CODE !== 'INFO-000') {
-    return { error: result.MESSAGE || 'Seoul API error', code: result.CODE, rows: [] };
-  }
-  const rows = Array.isArray(svc.row) ? svc.row : (svc.row ? [svc.row] : []);
-  return { rows, totalCount: svc.list_total_count || rows.length };
+  return zones;
+}
+
+// 한 자치구 조회
+async function fetchGu(signguCode) {
+  const res = await timedFetch(LIST_URL, 12000, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0',
+    },
+    body: `scupBsnsSttus.signguCode=${signguCode}&pageSize=500`,
+  });
+  return await res.text();
 }
 
 module.exports = async function handler(req, res) {
   try {
-    const serviceKey = process.env.SEOUL_API_KEY;
-    if (!serviceKey) {
-      res.status(500).json({
-        error: 'SEOUL_API_KEY 환경변수가 설정되지 않았습니다.',
-        hint: 'data.seoul.go.kr → 인증키 신청(즉시 발급) 후 Vercel 환경변수 SEOUL_API_KEY로 등록하세요. MOLIT(data.go.kr) 키와는 별개입니다.',
-      });
-      return;
-    }
-
     const q = req.query || {};
-    const service = q.service || DEFAULT_SERVICE;
-    const start = Math.max(Number(q.start) || 1, 1);
-    const end = Math.min(Number(q.end) || 1000, 1000);
-    const probe = q.probe === '1' || q.probe === 'true';
+    const stageFilter = ['planned', 'ongoing', 'late', 'done'].includes(q.stage) ? q.stage : null;
+    const all = q.gu === 'all';
 
-    const url = `${SEOUL_BASE}/${serviceKey}/json/${service}/${start}/${end}/`;
-
-    let json;
-    try {
-      const r = await timedFetch(url, 12000);
-      const text = await r.text();
-      try { json = JSON.parse(text); }
-      catch {
-        res.status(502).json({
-          error: 'Seoul API JSON 파싱 실패(서비스명이 틀렸거나 점검 중일 수 있음)',
-          serviceTried: service,
-          preview: text.slice(0, 300),
+    // 대상 자치구 목록 결정
+    let targets; // [{gu, code}]
+    if (all) {
+      targets = Object.entries(SEOUL_LAWD).map(([gu, code]) => ({ gu, code }));
+    } else {
+      const code = q.signguCode || SEOUL_LAWD[q.gu];
+      if (!code) {
+        res.status(400).json({
+          error: "gu(서울 자치구 이름) 또는 'all', 또는 signguCode 5자리가 필요합니다.",
+          available: Object.keys(SEOUL_LAWD),
         });
         return;
       }
-    } catch (e) {
-      const aborted = e && e.name === 'AbortError';
-      res.status(504).json({
-        error: aborted ? '서울 열린데이터광장 서버가 응답하지 않습니다. 잠시 후 재시도하세요.' : `호출 실패: ${e.message}`,
-      });
-      return;
+      targets = [{ gu: q.gu || null, code }];
     }
 
-    const parsed = parseSeoul(json, service);
-
-    // 진단 모드: 원본 첫 row의 키와 RESULT를 그대로 노출 → 실제 필드명 확정용
-    if (probe) {
-      const sampleRow = (parsed.rows && parsed.rows[0]) || null;
+    // 진단 모드: 첫 자치구 원본 HTML 앞부분 + 파싱 행 수
+    if (q.probe === '1' || q.probe === 'true') {
+      const html = await fetchGu(targets[0].code);
+      const zones = parseZones(html);
       res.status(200).json({
         probe: true,
-        serviceTried: service,
-        error: parsed.error || null,
-        code: parsed.code || null,
-        totalCount: parsed.totalCount || 0,
-        rowKeys: sampleRow ? Object.keys(sampleRow) : [],
-        sampleRow,
-        topLevelKeys: Object.keys(json),
-        hint: 'rowKeys를 보고 redevelopment.js의 pick() 후보 필드명과 DEFAULT_SERVICE를 확정하세요.',
+        guTried: targets[0],
+        htmlBytes: html.length,
+        parsedCount: zones.length,
+        sample: zones.slice(0, 3),
+        preview: html.slice(0, 400),
       });
       return;
     }
 
-    if (parsed.error) {
-      res.status(502).json({ error: `서울 정비사업 조회 실패: ${parsed.error}`, code: parsed.code, serviceTried: service });
+    // 조회(전체구는 동시 6개 제한)
+    const htmls = await mapLimit(targets, all ? 6 : 1, async (t) => {
+      try { return { gu: t.gu, code: t.code, html: await fetchGu(t.code) }; }
+      catch (e) { return { gu: t.gu, code: t.code, error: e.name === 'AbortError' ? 'timeout' : e.message }; }
+    });
+
+    let zones = [];
+    const failed = [];
+    for (const h of htmls) {
+      if (h.error) { failed.push({ gu: h.gu, code: h.code, error: h.error }); continue; }
+      zones.push(...parseZones(h.html));
+    }
+
+    if (!zones.length && failed.length) {
+      res.status(504).json({ error: '정비사업 정보몽땅 조회 실패(서버 무응답 또는 차단)', failed });
       return;
     }
 
-    // row → 표준 구역 객체로 매핑(필드명 후보 다중 시도)
-    const gu = q.gu && SEOUL_GU.includes(q.gu) ? q.gu : null;
-    const stageFilter = ['planned', 'ongoing', 'late', 'done'].includes(q.stage) ? q.stage : null;
-
-    let zones = parsed.rows.map((row) => {
-      const stageText = pick(row, ['CGG_CODE_SE', '운영구분', '진행단계', '사업단계', 'STEP', 'STAGE', 'PROGRESS', '추진단계', '단계']);
-      const stage = classifyStage(stageText);
-      const latRaw = pick(row, ['LAT', 'LATITUDE', '위도', 'YCODE', 'Y']);
-      const lngRaw = pick(row, ['LNG', 'LON', 'LONGITUDE', '경도', 'XCODE', 'X']);
-      return {
-        name: pick(row, ['사업장명', '구역명', 'AREA_NM', 'SECTOR_NM', 'BSNS_NM', 'PROJECT_NM', '정비구역명칭']),
-        gu: pick(row, ['자치구', 'CGG_NM', 'GU_NM', 'SGG_NM', '자치구명']),
-        dong: pick(row, ['법정동', '행정동', 'DONG', 'BJDONG_NM']),
-        type: pick(row, ['사업구분', '정비사업구분', 'BSNS_SE', 'TYPE', '사업유형']),
-        stageText: stageText,
-        stage,
-        stageLabel: STAGE_LABEL[stage],
-        address: pick(row, ['주소', '위치', 'ADDR', 'LOCATION', '대표지번']),
-        households: Number(pick(row, ['세대수', 'HSHLD_CNT', 'HOUSEHOLDS'])) || null,
-        area: Number(pick(row, ['구역면적', 'AREA', 'TOTAR'])) || null,
-        builder: pick(row, ['시공자', 'CONSTRUCTOR', '시공사']),
-        lat: latRaw ? Number(latRaw) : null,
-        lng: lngRaw ? Number(lngRaw) : null,
-      };
-    });
-
-    if (gu) zones = zones.filter((z) => z.gu === gu);
     if (stageFilter) zones = zones.filter((z) => z.stage === stageFilter);
 
     // 단계별 집계
     const stageCounts = zones.reduce((acc, z) => { acc[z.stage] = (acc[z.stage] || 0) + 1; return acc; }, {});
-    const hasCoords = zones.some((z) => z.lat && z.lng);
 
     res.status(200).json({
-      query: { gu, stage: stageFilter, service },
-      totalCount: parsed.totalCount,
+      query: { gu: all ? 'all' : (q.gu || null), stage: stageFilter },
       zoneCount: zones.length,
       stageCounts,
-      hasCoords,            // false면 프론트에서 카카오 지오코딩(주소→좌표) 필요
+      hasCoords: false,   // 항상 false: 프론트에서 address를 카카오 지오코딩해야 함
+      failed: failed.length ? failed : undefined,
       zones,
-      disclaimer: '서울 열린데이터광장 정비사업 현황(원본: 정비사업 정보몽땅) 기준. 사업단계는 원본 텍스트를 키워드로 분류한 것으로 실제와 다를 수 있습니다.',
+      disclaimer: '서울시 정비사업 정보몽땅(cleanup.seoul.go.kr) 사업장검색 기준. 진행단계는 원본 텍스트를 키워드로 분류한 것으로 실제와 다를 수 있습니다. 좌표는 대표지번 주소를 지오코딩한 근사 위치입니다.',
     });
   } catch (e) {
     res.status(502).json({ error: '재개발 구역 조회 실패', detail: e.message });
