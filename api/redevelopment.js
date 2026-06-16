@@ -109,6 +109,7 @@ function parseZones(html) {
       stageText,                     // 원본 진행단계
       stage,                         // 분류 카테고리
       stageLabel: STAGE_LABEL[stage],
+      cafeUrl: slugM ? slugM[1] : null,         // 카페 슬러그(위치도 리다이렉트용)
       detailUrl: slugM ? CAFE_URL + slugM[1] : null,
       lat: null, lng: null,          // 원천에 좌표 없음 → 프론트 지오코딩
     });
