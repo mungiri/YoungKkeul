@@ -107,6 +107,7 @@
   .tab:active{transform:scale(.98);}
   /* ===== 재개발 지도 뷰 ===== */
   #map{width:100%; height:460px; border-radius:18px; border:1px solid var(--line); background:#e8e8ed;}
+  #complexMap{width:100%; height:360px; border-radius:18px; border:1px solid var(--line); background:#e8e8ed; margin:6px 0 14px;}
   .legend{display:flex; flex-wrap:wrap; gap:14px; margin:14px 2px 4px;}
   .legend span{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--sub);}
   .legend i{width:12px; height:12px; border-radius:50%; display:inline-block; flex-shrink:0;}
@@ -243,6 +244,7 @@
     </div>
     <button id="searchBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 예산으로 살 수 있는 단지 보기</button>
     <div id="searchStatus" class="hint" style="margin-top:10px;"></div>
+    <div id="complexMap" style="display:none;"></div>
     <div id="complexList" style="margin-top:8px;"></div>
   </div>
 
@@ -510,6 +512,7 @@ async function searchComplexes(){
   const status=document.getElementById('searchStatus');
   const list=document.getElementById('complexList');
   list.innerHTML='';
+  document.getElementById('complexMap').style.display='none';   // 새 검색 시 지도 초기화
   if(lastPrice<=0){status.textContent='먼저 위에서 마지노선 가격이 계산되어야 합니다.';return;}
   const gu=document.getElementById('gu').value;
   if(!gu){status.textContent='자치구를 선택해주세요.';return;}
@@ -569,7 +572,55 @@ async function searchComplexes(){
         </div>`;
       list.appendChild(row);
     });
+    showComplexMap(comps, gu);   // 결과 단지들을 카카오맵에 표시
   }catch(e){status.textContent=(e&&e.name==='AbortError')?'조회가 너무 오래 걸려 중단했어요. 잠시 후 다시 시도해주세요.':'네트워크 오류: '+(e&&e.message||e);}
+}
+
+/* ===== 매물 결과 카카오맵 표시 ===== */
+function showComplexMap(comps, gu){
+  const el=document.getElementById('complexMap');
+  withKakao((ok)=>{
+    if(!ok || !geocoder){ el.style.display='none'; return; }   // 카카오 미로딩이면 목록만
+    el.style.display='block';
+    if(!complexMap){
+      complexMap=new kakao.maps.Map(el,{center:new kakao.maps.LatLng(37.55,126.98),level:6});
+      complexInfo=new kakao.maps.InfoWindow({removable:true});
+    } else { complexMap.relayout(); }
+    plotComplexes(comps, gu);
+  });
+}
+
+async function plotComplexes(comps, gu){
+  complexMarkers.forEach(m=>m.setMap(null)); complexMarkers=[];
+  if(complexInfo) complexInfo.close();
+  // 주소 지오코딩(도로명 우선 → 지번 → 동). geocodeOne은 재개발 지도와 공유.
+  for(const c of comps){
+    if(c._lat&&c._lng) continue;
+    let g=await geocodeOne(c.roadAddr || `서울 ${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`);
+    if(!g && c.addr) g=await geocodeOne(c.addr);
+    if(!g) g=await geocodeOne(`서울 ${gu} ${c.dong}`);
+    if(g){ c._lat=g.lat; c._lng=g.lng; }
+  }
+  const bounds=new kakao.maps.LatLngBounds(); let n=0;
+  comps.forEach(c=>{
+    if(!c._lat||!c._lng) return;
+    const pos=new kakao.maps.LatLng(c._lat,c._lng);
+    const mk=new kakao.maps.Marker({position:pos,map:complexMap});
+    mk._c=c;
+    kakao.maps.event.addListener(mk,'click',()=>openComplexInfo(mk,c,gu));
+    complexMarkers.push(mk); bounds.extend(pos); n++;
+  });
+  if(n) complexMap.setBounds(bounds);
+}
+
+function openComplexInfo(mk,c,gu){
+  const landUrl=`https://m.land.naver.com/search/result/${encodeURIComponent(`${c.dong} ${c.apt}`)}`;
+  const tr=(c.trend!=null)?` <span style="color:${c.trend>0?'#c4362e':(c.trend<0?'#1d8a4e':'#86868b')}">${c.trend>0?'▲':(c.trend<0?'▼':'')}${Math.abs(c.trend)}%</span>`:'';
+  const sub=c.subwayStation?`<br/>🚇 ${c.subwayLine?c.subwayLine+' ':''}${c.subwayStation}역${c.subwayWalk?' '+c.subwayWalk:''}`:'';
+  complexInfo.setContent(`<div class="iw"><div class="n">${c.apt}</div>
+    <div class="m">평균 <b style="color:#0066cc">${won(c.avgPrice)}</b>${tr}<br/>${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''}${c.households!=null?' · '+c.households.toLocaleString()+'세대':''}${sub}</div>
+    <div style="margin-top:6px"><a href="${landUrl}" target="_blank" rel="noopener">🏠 네이버 부동산 ↗</a></div></div>`);
+  complexInfo.open(complexMap, mk);
 }
 let stationOnly=false;
 document.getElementById('stationFilter').addEventListener('click',function(){
@@ -706,6 +757,23 @@ document.getElementById('imgBtn').addEventListener('click',function(){
 const STAGE_COLOR={planned:'#0066cc',ongoing:'#1d8a4e',late:'#e8820c',done:'#86868b',unknown:'#c0c0c5'};
 let mapObj=null, geocoder=null, mapMarkers=[], mapInfo=null,
     mapZones=[], mapStageFilter='all', mapInited=false;
+// 매물(실거래가) 결과 지도
+let complexMap=null, complexMarkers=[], complexInfo=null;
+
+/* 카카오 SDK 공유 로더 — 재개발 지도/매물 지도 양쪽에서 1회만 로드, geocoder 공유 */
+let kakaoReady=false, kakaoLoading=false; const kakaoCbs=[];
+function withKakao(cb){
+  if(kakaoReady){ cb(true); return; }
+  if(typeof kakao==='undefined'||!kakao.maps){ cb(false); return; }
+  kakaoCbs.push(cb);
+  if(kakaoLoading) return;
+  kakaoLoading=true;
+  kakao.maps.load(()=>{
+    if(kakao.maps.services && kakao.maps.services.Geocoder) geocoder=new kakao.maps.services.Geocoder();
+    kakaoReady=true; kakaoLoading=false;
+    while(kakaoCbs.length) kakaoCbs.shift()(true);
+  });
+}
 
 /* 탭 전환 */
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
@@ -735,18 +803,14 @@ document.querySelectorAll('#stageChips .toggle-btn').forEach(c=>c.addEventListen
 function initMapView(){
   if(mapInited) return;
   const status=document.getElementById('mapStatus');
-  if(typeof kakao==='undefined'||!kakao.maps){ status.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 여부 확인 후 새로고침)'; return; }
-  kakao.maps.load(()=>{
+  withKakao((ok)=>{
+    if(!ok){ status.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 여부 확인 후 새로고침)'; return; }
     try{
       mapObj=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(37.5511,127.0409),level:6});
       mapInfo=new kakao.maps.InfoWindow({removable:true});
     }catch(e){ status.textContent='지도 초기화 실패: '+e.message+' (카카오 앱에 이 도메인이 등록됐는지 확인하세요)'; return; }
-    if(kakao.maps.services && kakao.maps.services.Geocoder){
-      geocoder=new kakao.maps.services.Geocoder();
-      status.textContent='자치구를 선택하면 정비사업 구역을 표시합니다.';
-    }else{
-      status.textContent='카카오 지오코더(services)를 불러오지 못했습니다. 카카오 앱 > 플랫폼 > Web 사이트 도메인에 https://young-kkeul.vercel.app 등록 여부를 확인하세요.';
-    }
+    status.textContent = geocoder ? '자치구를 선택하면 정비사업 구역을 표시합니다.'
+      : '카카오 지오코더(services)를 불러오지 못했습니다. 카카오 앱 > 플랫폼 > Web 사이트 도메인에 https://young-kkeul.vercel.app 등록 여부를 확인하세요.';
     mapInited=true;
     // 자동 로드 없음 — 사용자가 자치구를 선택할 때만 API 호출
   });
