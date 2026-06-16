@@ -2,7 +2,6 @@
   "name": "young-kkeul",
   "version": "1.0.0",
   "description": "영끌컷 · 자력 독립 마지노선 계산기",
-  "type": "module",
   "scripts": {
     "dev": "vercel dev",
     "build": "echo 'No build step required'",
