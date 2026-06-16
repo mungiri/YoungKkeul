@@ -150,6 +150,13 @@
   .dchip .di{font-size:18px;}
   .dchip .dv{font-size:18px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; margin-top:2px;}
   .dchip .dk{font-size:11px; color:var(--dim); margin-top:1px;}
+  .dchip .db{font-size:11px; font-weight:600; margin-top:4px;}
+  .dchip .db .pc{color:var(--sub); font-weight:500;}
+  .band-hi{color:var(--green);} .band-mid{color:var(--sub);} .band-lo{color:var(--dim);}
+  /* 클릭 가능한 범례(업종 토글) */
+  .legend span.tog{cursor:pointer; user-select:none; padding:3px 9px; border:1px solid var(--line); border-radius:9999px; transition:opacity .12s;}
+  .legend span.tog:active{transform:scale(.96);}
+  .legend-hint{font-size:12px; color:var(--dim); margin:8px 2px 0;}
   @media (max-width:560px){
     body{padding:28px 16px;}
     .grid2{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;}
@@ -361,6 +368,7 @@
       <div class="hint" style="margin-bottom:6px;">업종 대분류별 색으로 표시. 마커를 누르면 상호·업종이 보입니다.</div>
       <div id="areaMap"></div>
       <div class="legend" id="areaLegend" style="margin-top:12px;"></div>
+      <div class="legend-hint" id="areaLegendHint"></div>
     </div>
 
     <!-- 업종 구성 -->
@@ -386,9 +394,10 @@
         <div class="stat"><div class="k">프랜차이즈</div><div class="v" id="seoulFrc">–</div></div>
       </div>
       <div class="binding-box" id="seoulConsumer" style="margin-top:14px;"></div>
-      <div class="res-label" style="margin:18px 0 8px;">시간대별 추정매출</div>
+      <div class="res-label" style="margin:18px 0 2px;">시간대별 추정매출 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 1시간당 평균</span></div>
+      <div class="hint" style="margin-bottom:8px;">구간 길이가 달라 1시간 평균으로 환산했습니다.</div>
       <div class="barlist" id="seoulSalesTime"></div>
-      <div class="res-label" style="margin:18px 0 8px;">시간대별 유동인구</div>
+      <div class="res-label" style="margin:18px 0 8px;">시간대별 유동인구 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 1시간당 평균</span></div>
       <div class="barlist" id="seoulFootTime"></div>
     </div>
 
@@ -1084,6 +1093,27 @@ function colorForLcls(name){
   areaColorMap[name]=c; return c;
 }
 
+/* 대분류(소상공인 10종) → 6~7개 그룹으로 통합 — 업종 구성/지도 색/범례 공유 */
+const LCLS_GROUP_MAP={
+  '음식':'음식',
+  '소매':'소매·쇼핑',
+  '생활서비스':'생활서비스','수리·개인':'생활서비스',
+  '과학·기술':'업무·사무','시설관리·임대':'업무·사무','부동산':'업무·사무',
+  '교육':'교육','학문·교육':'교육',
+  '보건의료':'의료',
+  '예술·스포츠':'여가·문화','관광·여가·오락':'여가·문화','스포츠':'여가·문화','숙박':'여가·문화',
+};
+function groupLcls(name){ return LCLS_GROUP_MAP[name] || '기타'; }
+function groupByLcls(byLcls){
+  const m={};
+  (byLcls||[]).forEach(r=>{ const g=groupLcls(r.name); m[g]=(m[g]||0)+r.count; });
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}));
+}
+
+/* 지도 업종 토글 상태 */
+let areaStoreMarkers=[];           // {marker, group}
+let areaHiddenGroups=new Set();
+
 function initAreaView(){
   if(areaInited) return;
   const status=document.getElementById('areaStatus');
@@ -1154,6 +1184,11 @@ const DERIVED_VIEW=[
   {key:'medical',ic:'🏥',label:'의료'},
   {key:'education',ic:'📚',label:'학원·교육'},
 ];
+// 소비업종 대비 '비중' 밴드 임계 {hi:높음, lo:낮음} — 업종별 일반적 비중에 맞춰 보정
+const DERIVED_THR={
+  cafe:{hi:0.11,lo:0.05}, restaurant:{hi:0.34,lo:0.18}, bar:{hi:0.07,lo:0.03},
+  convenience:{hi:0.20,lo:0.10}, medical:{hi:0.12,lo:0.055}, education:{hi:0.13,lo:0.06},
+};
 
 function renderArea(data, loc){
   areaColorMap={};   // 분석마다 색 재배정
@@ -1169,19 +1204,27 @@ function renderArea(data, loc){
   document.getElementById('areaDensity').textContent=data.density.toLocaleString();
   document.getElementById('areaDiversity').textContent=`${Math.round(data.diversity*100)}%`;
 
-  // 파생 지표 칩
+  // 파생 지표 칩 — 숫자만이 아니라 '소비업종 중 비중 + 많음/보통/적음'으로 맥락 제공
+  const der=data.derived||{};
+  const consumerBase=['cafe','restaurant','bar','convenience','beauty','medical','education','fashion','leisure']
+    .reduce((s,k)=>s+(der[k]||0),0)||1;
   const dWrap=document.getElementById('areaDerived'); dWrap.innerHTML='';
   DERIVED_VIEW.forEach(d=>{
-    const v=(data.derived&&data.derived[d.key])||0;
+    const v=der[d.key]||0;
+    const share=v/consumerBase;                 // 소비업종 대비 비중
+    const t=DERIVED_THR[d.key]||{hi:0.15,lo:0.06};
+    const band = share>=t.hi ? ['비중 높음','band-hi'] : (share<=t.lo ? ['비중 낮음','band-lo'] : ['비중 보통','band-mid']);
+    const pct=Math.round(share*100);
     const el=document.createElement('div'); el.className='dchip';
-    el.innerHTML=`<div class="di">${d.ic}</div><div class="dv">${v.toLocaleString()}</div><div class="dk">${d.label}</div>`;
+    el.innerHTML=`<div class="di">${d.ic}</div><div class="dv">${v.toLocaleString()}<span style="font-size:12px;color:var(--dim);font-weight:500">곳</span></div>`+
+      `<div class="dk">${d.label}</div><div class="db ${band[1]}">${band[0]} <span class="pc">${pct}%</span></div>`;
     dWrap.appendChild(el);
   });
 
-  // 업종 구성 막대(대분류) — 색은 마커와 공유
-  renderBars(document.getElementById('areaLcls'), data.byLcls, data.analyzed, true);
-  // 세부 업종(중분류)
-  renderBars(document.getElementById('areaMcls'), data.byMcls, data.analyzed, false);
+  // 업종 구성 막대 — 10종 대분류를 6~7개 그룹으로 통합, 색은 지도 마커와 공유
+  renderBars(document.getElementById('areaLcls'), groupByLcls(data.byLcls), data.analyzed, true);
+  // 세부 업종(중분류) 상위 8
+  renderBars(document.getElementById('areaMcls'), (data.byMcls||[]).slice(0,8), data.analyzed, false);
 
   // 지도 마커
   drawAreaMap(data, loc);
@@ -1235,10 +1278,12 @@ function renderSeoulOverlay(d){
     cb.innerHTML=`주 소비층 <b>${s.topAge||'-'}</b> · 매출 피크 <b>${s.topTime||'-'}</b> · 성별 남 ${mp}% / 여 ${fp}%<br/>주중 ${wonShort(s.weekdayAmt)} · 주말 ${wonShort(s.weekendAmt)} (월 추정)`;
   } else cb.textContent='추정매출 데이터 없음';
 
-  // 시간대별 매출 막대
-  if(s) renderTimeBars(document.getElementById('seoulSalesTime'), s.byTime.map(t=>({name:t.label,val:t.amt})), wonShort);
-  // 시간대별 유동인구 막대
-  if(f) renderTimeBars(document.getElementById('seoulFootTime'), f.byTime.map(t=>({name:t.label,val:t.co})), (v)=>Number(v).toLocaleString());
+  // 시간대 구간 길이(시간) — 00-06,06-11,11-14,14-17,17-21,21-24 → 6,5,3,3,4,3
+  const HRS=[6,5,3,3,4,3];
+  // 시간대별 매출: 구간 길이가 달라 1시간 평균으로 환산
+  if(s) renderTimeBars(document.getElementById('seoulSalesTime'), s.byTime.map((t,i)=>({name:t.label,val:Math.round(t.amt/(HRS[i]||1))})), wonShort);
+  // 시간대별 유동인구: 1시간 평균
+  if(f) renderTimeBars(document.getElementById('seoulFootTime'), f.byTime.map((t,i)=>({name:t.label,val:Math.round(t.co/(HRS[i]||1))})), (v)=>Number(v).toLocaleString());
 
   panel.style.display='';
 }
@@ -1270,11 +1315,16 @@ function renderBars(wrap, list, total, useColor){
   });
 }
 
-function clearAreaMarkers(){ areaMarkers.forEach(m=>m.setMap(null)); areaMarkers=[]; if(areaInfo)areaInfo.close(); if(areaCircle){areaCircle.setMap(null);areaCircle=null;} }
+function clearAreaMarkers(){
+  areaMarkers.forEach(m=>m.setMap(null)); areaMarkers=[];
+  areaStoreMarkers=[];
+  if(areaInfo)areaInfo.close(); if(areaCircle){areaCircle.setMap(null);areaCircle=null;}
+}
 
 function drawAreaMap(data, loc){
   if(!areaInited||!areaMap) return;
   clearAreaMarkers();
+  areaHiddenGroups=new Set();   // 분석마다 토글 초기화
   const center=new kakao.maps.LatLng(loc.lat, loc.lng);
   areaMap.setCenter(center);
   // 반경 원
@@ -1283,28 +1333,41 @@ function drawAreaMap(data, loc){
   // 중심 핀
   const c0=new kakao.maps.Marker({position:center, map:areaMap});
   areaMarkers.push(c0);
-  // 점포 마커(대분류 색)
+  // 점포 마커(그룹 색) — 그룹 정보 함께 보관해 토글 가능하게
   (data.markers||[]).forEach(p=>{
+    const g=groupLcls(p.lcls);
     const pos=new kakao.maps.LatLng(p.lat, p.lng);
-    const mk=new kakao.maps.Marker({position:pos, map:areaMap, image:areaDot(colorForLcls(p.lcls))});
+    const mk=new kakao.maps.Marker({position:pos, map:areaMap, image:areaDot(colorForLcls(g))});
     kakao.maps.event.addListener(mk,'click',()=>{
-      areaInfo.setContent(`<div class="iw"><div class="n">${p.name||'(상호미상)'}</div><div class="m">${p.lcls||''}${p.mcls?' · '+p.mcls:''}</div></div>`);
+      areaInfo.setContent(`<div class="iw"><div class="n">${p.name||'(상호미상)'}</div><div class="m">${g}${p.mcls?' · '+p.mcls:''}</div></div>`);
       areaInfo.open(areaMap, mk);
     });
     areaMarkers.push(mk);
+    areaStoreMarkers.push({marker:mk, group:g});
   });
   // 반경에 맞춰 줌
   const lvl=data.query.radius>=1000?6:(data.query.radius>=500?5:4);
   areaMap.setLevel(lvl);
   setTimeout(()=>areaMap.relayout&&areaMap.relayout(),60);
 
-  // 범례(대분류 색)
+  // 범례 = 업종 토글 (그룹별, 클릭으로 켜고 끄기)
+  const groups=groupByLcls(data.byLcls);
   const lg=document.getElementById('areaLegend'); lg.innerHTML='';
-  data.byLcls.slice(0,8).forEach(row=>{
-    const s=document.createElement('span');
-    s.innerHTML=`<i style="background:${colorForLcls(row.name)}"></i>${row.name}`;
+  groups.forEach(row=>{
+    const s=document.createElement('span'); s.className='tog';
+    s.innerHTML=`<i style="background:${colorForLcls(row.name)}"></i>${row.name} <b style="font-weight:600">${row.count.toLocaleString()}</b>`;
+    s.addEventListener('click',()=>toggleAreaGroup(row.name, s));
     lg.appendChild(s);
   });
+  document.getElementById('areaLegendHint').textContent='💡 업종을 눌러 지도에서 켜고 끌 수 있어요.';
+}
+
+function toggleAreaGroup(g, spanEl){
+  if(areaHiddenGroups.has(g)) areaHiddenGroups.delete(g); else areaHiddenGroups.add(g);
+  const off=areaHiddenGroups.has(g);
+  spanEl.style.opacity=off?0.4:1;
+  spanEl.style.textDecoration=off?'line-through':'none';
+  areaStoreMarkers.forEach(o=>{ if(o.group===g) o.marker.setMap(off?null:areaMap); });
 }
 
 function areaDot(color){
