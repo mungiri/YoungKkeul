@@ -261,6 +261,23 @@ module.exports = async function handler(req, res) {
     }
 
     const q = req.query || {};
+
+    // 임시 진단: 단일 MOLIT 호출을 25s까지 기다려 실제 HTTP 상태/본문 반환
+    if (q.probe) {
+      const lawd = q.lawdCd || SEOUL_LAWD[q.gu] || '11110';
+      const ym = q.ymd || '202604';
+      const url = `${MOLIT_URL}?${new URLSearchParams({ serviceKey, LAWD_CD: lawd, DEAL_YMD: ym, pageNo: '1', numOfRows: '5' })}`;
+      const t0 = Date.now();
+      try {
+        const r = await timedFetch(url, 25000);
+        const body = await r.text();
+        res.status(200).json({ probe: true, httpStatus: r.status, ms: Date.now() - t0, head: body.slice(0, 300) });
+      } catch (e) {
+        res.status(200).json({ probe: true, error: e.name + ': ' + e.message, ms: Date.now() - t0 });
+      }
+      return;
+    }
+
     const lawdCd = q.lawdCd || SEOUL_LAWD[q.gu];
     if (!lawdCd) {
       res.status(400).json({
