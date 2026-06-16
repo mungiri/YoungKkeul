@@ -8,6 +8,9 @@
   window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
 </script>
 <script defer src="/_vercel/speed-insights/script.js"></script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   /* Apple-style 라이트 디자인 (DESIGN-apple.md): 파치먼트/화이트 캔버스,
@@ -661,7 +664,7 @@ function setAreaUnit(unit){
   }
   areaUnit=unit;
   const py=unit==='py';
-  document.getElementById('minAreaLabel').textContent=py?'평형 하한':'전용면적 하한';
+  document.getElementById('minAreaLabel').textContent=py?'평형 하한':'전용면적 하���';
   document.getElementById('maxAreaLabel').textContent=py?'평형 상한':'전용면적 상한';
   document.getElementById('minAreaSuffix').textContent=py?'평형':'㎡';
   document.getElementById('maxAreaSuffix').textContent=py?'평형':'㎡';
