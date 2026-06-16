@@ -835,9 +835,10 @@ function zoneLinks(z){
   if(z.cafeUrl) parts.push(`<a href="/api/locimage?cafeUrl=${encodeURIComponent(z.cafeUrl)}" target="_blank" rel="noopener">🗺️ 위치도 ↗</a>`);
   if(z.detailUrl) parts.push(`<a href="${z.detailUrl}" target="_blank" rel="noopener">🏗️ 사업현황 ↗</a>`);
   // 네이버 부동산: 지번 검색은 결과가 없어 좌표 기반 지도로 이동(미지오코딩 시 동 단위 검색 폴백)
+  // 재개발 지구는 대개 빌라촌 → 아파트(complexes) 대신 빌라·주택(houses) 창으로 이동
   let landUrl;
   if(z.lat && z.lng){
-    landUrl=`https://new.land.naver.com/complexes?ms=${z.lat},${z.lng},16&a=APT:PRE:ABYG:JGC&e=RETAIL`;
+    landUrl=`https://new.land.naver.com/houses?ms=${z.lat},${z.lng},16&a=VL&b=A1&e=RETAIL`;
   }else{
     const dong=(z.address||'').replace(/\s*\d.*$/,'').trim();  // "면목동 297" → "면목동"
     landUrl=`https://m.land.naver.com/search/result/${encodeURIComponent(`${z.gu||''} ${dong}`.trim())}`;
