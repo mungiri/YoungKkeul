@@ -32,6 +32,7 @@ const SDSC_RADIUS_URL =
 
 const ROWS_PER_PAGE = 1000;   // 소상공인 API 페이지당 상한
 const MARKER_CAP = 600;       // 프론트 지도 마커 상한(과도한 페이로드 방지)
+const PAGE_CAP = 8;           // 한 요청에 받을 최대 페이지 수(=8000건). 반경 전구간 커버용 기본값
 
 const config = { maxDuration: 30 };
 module.exports.config = config;
@@ -53,6 +54,16 @@ async function mapLimit(items, limit, fn) {
   });
   await Promise.all(workers);
   return ret;
+}
+
+// 받을 페이지 번호 선택: 전체가 상한 이하면 1~끝 전부, 초과하면 1~끝을 균등 분산(양끝 포함).
+//   소상공인 API가 경도순 정렬이라, 분산 수신하면 동·서를 고루 포함해 지도 쏠림을 막는다.
+function pickPages(totalPages, cap) {
+  if (totalPages <= cap) return Array.from({ length: totalPages }, (_, i) => i + 1);
+  if (cap <= 1) return [1];
+  const out = [];
+  for (let k = 0; k < cap; k++) out.push(Math.round(1 + (k * (totalPages - 1)) / (cap - 1)));
+  return [...new Set(out)];
 }
 
 // 소상공인 API 응답(JSON) 파서 → { items, totalCount, error }
@@ -187,7 +198,9 @@ module.exports = async function handler(req, res) {
       return;
     }
     const radius = Math.min(Math.max(Number(q.radius) || 500, 50), 2000);
-    const maxPages = Math.min(Math.max(Number(q.pages) || 3, 1), 5);
+    // 페이지 상한: 소상공인 API는 결과를 경도순으로 정렬해 주므로, 앞 N페이지만 받으면
+    //   서쪽 점포만 잡혀 지도가 한쪽에 쏠린다. 반경 전체를 덮도록 넉넉히 받는다(상한 PAGE_CAP).
+    const pageCap = Math.min(Math.max(Number(q.pages) || PAGE_CAP, 1), 12);
 
     // 1페이지 호출 → totalCount로 추가 페이지 수 결정
     const first = await fetchRadiusPage(serviceKey, lng, lat, radius, 1);
@@ -205,11 +218,14 @@ module.exports = async function handler(req, res) {
 
     let items = first.items.slice();
     const totalCount = first.totalCount;
-    const needPages = Math.min(maxPages, Math.ceil(totalCount / ROWS_PER_PAGE) || 1);
-    if (needPages > 1) {
+    const totalPages = Math.max(1, Math.ceil(totalCount / ROWS_PER_PAGE) || 1);
+    // 받을 페이지 선택: 전체가 상한 이하면 전부(매끄러운 전구간), 초과하면 1~끝을 균등 분산
+    //   (정렬이 경도순이라 분산해서 받으면 동·서를 고루 포함)
+    const pageNos = pickPages(totalPages, pageCap);
+    const restPages = pageNos.filter((p) => p !== 1);
+    if (restPages.length) {
       const rest = await mapLimit(
-        Array.from({ length: needPages - 1 }, (_, i) => i + 2),
-        4,
+        restPages, 6,
         (p) => fetchRadiusPage(serviceKey, lng, lat, radius, p).catch(() => ({ items: [] })),
       );
       rest.forEach((r) => { if (r && r.items) items = items.concat(r.items); });
@@ -219,7 +235,7 @@ module.exports = async function handler(req, res) {
     const byLcls = {};   // 대분류명 → 건수
     const byMcls = {};   // 중분류명 → 건수
     const derived = { cafe: 0, bar: 0, restaurant: 0, convenience: 0, medical: 0, education: 0, beauty: 0, fashion: 0, living: 0, leisure: 0 };
-    const markers = [];
+    const allMarkers = [];
 
     for (const it of items) {
       const lcls = (it.indsLclsNm || '기타').trim();
@@ -229,12 +245,17 @@ module.exports = async function handler(req, res) {
       if (mcls) byMcls[mcls] = (byMcls[mcls] || 0) + 1;
       for (const tag of tagOf(mcls, scls)) derived[tag] += 1;
 
-      if (markers.length < MARKER_CAP) {
-        const mlng = Number(it.lon), mlat = Number(it.lat);
-        if (Number.isFinite(mlng) && Number.isFinite(mlat)) {
-          markers.push({ name: it.bizesNm || '', lcls, mcls, lng: mlng, lat: mlat });
-        }
+      const mlng = Number(it.lon), mlat = Number(it.lat);
+      if (Number.isFinite(mlng) && Number.isFinite(mlat)) {
+        allMarkers.push({ name: it.bizesNm || '', lcls, mcls, lng: mlng, lat: mlat });
       }
+    }
+
+    // 마커는 전체 표본에서 '균등 샘플링'으로 600개 추림 — 앞 600개만 쓰면 정렬 탓에 한쪽에 쏠린다.
+    let markers = allMarkers;
+    if (allMarkers.length > MARKER_CAP) {
+      const stride = allMarkers.length / MARKER_CAP;
+      markers = Array.from({ length: MARKER_CAP }, (_, i) => allMarkers[Math.floor(i * stride)]);
     }
 
     const collected = items.length;
