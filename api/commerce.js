@@ -45,6 +45,12 @@ async function timedFetch(url, ms) {
   finally { clearTimeout(t); }
 }
 
+// 일시 오류(타임아웃/네트워크) 1회 재시도. 즉시 throw할 항목이 없는 fetch 래퍼라 단순 재귀로 처리.
+async function withRetry(fn, retries = 1) {
+  try { return await fn(); }
+  catch (e) { if (retries > 0) return withRetry(fn, retries - 1); throw e; }
+}
+
 // 동시 실행 개수 제한
 async function mapLimit(items, limit, fn) {
   const ret = new Array(items.length);
@@ -202,8 +208,8 @@ module.exports = async function handler(req, res) {
     //   서쪽 점포만 잡혀 지도가 한쪽에 쏠린다. 반경 전체를 덮도록 넉넉히 받는다(상한 PAGE_CAP).
     const pageCap = Math.min(Math.max(Number(q.pages) || PAGE_CAP, 1), 12);
 
-    // 1페이지 호출 → totalCount로 추가 페이지 수 결정
-    const first = await fetchRadiusPage(serviceKey, lng, lat, radius, 1);
+    // 1페이지 호출 → totalCount로 추가 페이지 수 결정 (타임아웃 시 1회 재시도)
+    const first = await withRetry(() => fetchRadiusPage(serviceKey, lng, lat, radius, 1));
     if (first.error) {
       const forbidden = /forbidden|미등록|승인|권한|service key/i.test(first.error);
       res.status(502).json({
@@ -226,7 +232,7 @@ module.exports = async function handler(req, res) {
     if (restPages.length) {
       const rest = await mapLimit(
         restPages, 6,
-        (p) => fetchRadiusPage(serviceKey, lng, lat, radius, p).catch(() => ({ items: [] })),
+        (p) => withRetry(() => fetchRadiusPage(serviceKey, lng, lat, radius, p)).catch(() => ({ items: [] })),
       );
       rest.forEach((r) => { if (r && r.items) items = items.concat(r.items); });
     }
@@ -269,6 +275,9 @@ module.exports = async function handler(req, res) {
     const stat = { total: totalCount, collected, density, diversity, derived, byLcls: lclsArr };
     const vibe = deriveVibe(stat);
 
+    // CDN 캐싱: 상가정보는 분기 단위 갱신이라 변동이 느리다. 6시간 신선 + 1일 stale-while-revalidate.
+    //   캐시 키=좌표+반경이라 같은 장소 재조회는 즉시 응답되고 소상공인 API 부하도 0.
+    res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
     res.status(200).json({
       query: { lng, lat, radius },
       total: totalCount,           // 반경 내 전체 점포(원천 totalCount)

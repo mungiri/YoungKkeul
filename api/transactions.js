@@ -60,6 +60,13 @@ async function timedFetch(url, ms) {
   finally { clearTimeout(t); }
 }
 
+// 일시 오류(타임아웃/네트워크 흔들림) 1회 재시도. API 로직 에러(키 미승인/한도초과 등 err.code 보유)는
+//   재시도해도 똑같이 실패하므로 즉시 throw — 불필요한 업스트림 부하·지연을 만들지 않는다.
+async function withRetry(fn, retries = 1) {
+  try { return await fn(); }
+  catch (e) { if (retries > 0 && !e.code) return withRetry(fn, retries - 1); throw e; }
+}
+
 // 동시 실행 개수 제한 map (data.go.kr 동시호출 폭주로 인한 throttle/행 방지)
 async function mapLimit(items, limit, fn) {
   const ret = new Array(items.length);
@@ -279,7 +286,7 @@ module.exports = async function handler(req, res) {
 
     // 최근 N개월 병렬 조회 (일부 달이 느리거나 실패해도 나머지로 진행)
     const yms = recentYearMonths(months);
-    const settled = await Promise.allSettled(yms.map((ym) => fetchMonth(serviceKey, lawdCd, ym)));
+    const settled = await Promise.allSettled(yms.map((ym) => withRetry(() => fetchMonth(serviceKey, lawdCd, ym))));
     const okMonths = settled.filter((s) => s.status === 'fulfilled');
     if (!okMonths.length) {
       const reason = settled.find((s) => s.status === 'rejected');
@@ -373,6 +380,11 @@ module.exports = async function handler(req, res) {
       complexes = complexes.filter((c) => c.households != null && c.households >= minHouseholds);
     }
 
+    // CDN 캐싱: 실거래가는 '과거 거래 기록'이라 분 단위로 바뀌지 않는다. 1시간 신선 + 6시간은
+    //   stale-while-revalidate(만료돼도 즉시 옛 데이터 응답, 갱신은 백그라운드)로 국토부 무응답에도 0.05초 응답.
+    //   ※ 캐시 키=URL 전체라 maxPrice가 유저마다 다르면 적중률이 낮다. 진짜 캐싱이 필요해지면
+    //     '구+개월' 단위 커스텀 키(Upstash 등)로 국토부 호출 자체를 캐싱하는 게 다음 단계.
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=21600');
     res.status(200).json({
       query: { gu: q.gu || null, lawdCd, maxPrice: Number.isFinite(maxPrice) ? maxPrice : null, months, minArea, maxArea: Number.isFinite(maxArea) ? maxArea : null, minHouseholds: minHouseholds || null },
       months: yms,

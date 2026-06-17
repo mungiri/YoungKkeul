@@ -56,6 +56,12 @@ async function timedFetch(url, ms, opts) {
   finally { clearTimeout(t); }
 }
 
+// 일시 오류(타임아웃/차단) 1회 재시도. 정보몽땅이 가끔 흔들려 한 구가 통째 누락되는 걸 줄인다.
+async function withRetry(fn, retries = 1) {
+  try { return await fn(); }
+  catch (e) { if (retries > 0) return withRetry(fn, retries - 1); throw e; }
+}
+
 // 동시 실행 개수 제한 (전체 25개구 조회 시 폭주 방지)
 async function mapLimit(items, limit, fn) {
   const ret = new Array(items.length);
@@ -170,7 +176,7 @@ module.exports = async function handler(req, res) {
 
     // 조회(전체구는 동시 6개 제한)
     const htmls = await mapLimit(targets, all ? 6 : 1, async (t) => {
-      try { return { gu: t.gu, code: t.code, html: await fetchGu(t.code) }; }
+      try { return { gu: t.gu, code: t.code, html: await withRetry(() => fetchGu(t.code)) }; }
       catch (e) { return { gu: t.gu, code: t.code, error: e.name === 'AbortError' ? 'timeout' : e.message }; }
     });
 
@@ -191,6 +197,9 @@ module.exports = async function handler(req, res) {
     // 단계별 집계
     const stageCounts = zones.reduce((acc, z) => { acc[z.stage] = (acc[z.stage] || 0) + 1; return acc; }, {});
 
+    // CDN 캐싱: 정비사업 단계는 행정 절차라 갱신이 느리다. 6시간 신선 + 1일 stale-while-revalidate.
+    //   캐시 키=gu+stage라 적중률이 높고, 정보몽땅이 막혀도 옛 데이터로 즉시 응답.
+    res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
     res.status(200).json({
       query: { gu: all ? 'all' : (q.gu || null), stage: stageFilter },
       zoneCount: zones.length,

@@ -202,6 +202,9 @@ module.exports = async function handler(req, res) {
     const d = snap.dongs[code8];
     if (!d) { res.status(404).json({ error: '이 행정동의 서울 상권 데이터가 없습니다(서울 외 지역이거나 미수록).', seoul: false }); return; }
 
+    // CDN 캐싱: 정적 스냅샷(분기 갱신)을 조회만 하므로 강하게 캐싱. 1일 신선 + 1주 stale-while-revalidate.
+    //   (관리자 build 경로는 위에서 먼저 return되어 캐시되지 않는다.)
+    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800');
     res.status(200).json({
       seoul: true,
       query: { code8, gu: qy.gu || null, dong: qy.dong || d.nm },
