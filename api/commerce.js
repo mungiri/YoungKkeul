@@ -185,110 +185,6 @@ function deriveVibe(stat) {
   return { headline, tags };
 }
 
-/* ===== 브랜드 매핑 · 5대 생활밀착 지표 (상호명 bizesNm 기반) =====
-   프랜차이즈(스타벅스·다이소 등)는 본사 직영/엄격한 출점심사라 '검증된 배후수요'의 대리지표다.
-   ※ 한계: 영업시간(24시간·맥딜DT)·공원/하천 근접(숲세권)은 이 API에 없어 반영하지 못한다.
-            상호명 글자 매칭이라 표본(받은 페이지) 밖 점포는 누락될 수 있다(brandsPartial로 표시). */
-function distM(lat1, lng1, lat2, lng2) {   // 중심점↔점포 직선거리(m, 하버사인)
-  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
-  const dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.min(1, Math.sqrt(a))));
-}
-
-// 배지·근거로 쓸 프랜차이즈 (상호명 정규식)
-const BRANDS = {
-  starbucks:     { label: '스타벅스',     re: /스타벅스|starbucks/i },
-  oliveyoung:    { label: '올리브영',     re: /올리브영|olive\s*young/i },
-  daiso:         { label: '다이소',       re: /다이소|daiso/i },
-  mcdonalds:     { label: '맥도날드',     re: /맥도날드|맥도널드|mcdonald/i },
-  baskinrobbins: { label: '배스킨라빈스', re: /배스킨라빈스|베스킨라빈스|baskin/i },
-  parisbaguette: { label: '파리바게뜨',   re: /파리바게[뜨트]|paris\s*baguette/i },
-  yupdduk:       { label: '엽기떡볶이',   re: /엽기떡볶이|동대문엽기/ },
-  malatang:      { label: '마라탕',       re: /마라탕|마라샹궈/ },
-  photobooth:    { label: '셀프사진관',   re: /인생네컷|포토이즘|포토그레이|하루필름|셀픽스|무인사진|즉석사진/i },
-};
-
-// 업종/상호명 텍스트로 잡는 세부 카테고리 (밀도 지표용)
-const FINE = {
-  pediatric:  /소아과|소아청소년|아동병원/,
-  animalHosp: /동물병원|동물메디컬|동물의료|반려동물|애견|애완/,
-  fitness:    /필라테스|요가|헬스|피트니스|크로스핏/i,
-  academy:    /학원|교습|보습|입시/,
-  convStore:  /편의점/,
-};
-
-// 집계 → 5대 생활지표 점수(0~100)·근거·배지. 룰베이스 추정(deriveVibe와 동일 철학).
-function buildLifestyle(brands, fine, derived) {
-  const has = (k) => brands[k].present;
-  const cap = (n, m) => Math.min(m, n);
-  const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
-  const level = (s) => (s >= 65 ? '강함' : s >= 35 ? '보통' : '약함');
-  const cb = (derived.restaurant + derived.cafe + derived.bar + derived.convenience +
-             derived.beauty + derived.medical + derived.education + derived.fashion + derived.leisure) || 1;
-  const barR = derived.bar / cb, cafeR = derived.cafe / cb, eduR = derived.education / cb;
-
-  // ① 2030 싱글·활력 (엽떡·올영·마라탕·사진관 + 야간/카페 비중)
-  let s1 = 0; const e1 = [];
-  if (has('yupdduk'))    { s1 += 20; e1.push('엽기떡볶이'); }
-  if (has('malatang'))   { s1 += 12; e1.push('마라탕'); }
-  if (has('oliveyoung')) { s1 += 18; e1.push('올리브영'); }
-  if (has('photobooth')) { s1 += 20; e1.push('셀프사진관'); }
-  s1 += cap(barR * 300, 20); if (barR >= 0.08) e1.push('야간·유흥 활발');
-  s1 += cap(cafeR * 120, 10);
-
-  // ② 스세권·검증된 인프라 (스타벅스 직영 출점 = 배후수요 검증)
-  let s2 = 0; const e2 = [];
-  if (has('starbucks'))  { s2 += 35; if (brands.starbucks.count >= 2) s2 += 10; e2.push(`스타벅스${brands.starbucks.count > 1 ? ` ${brands.starbucks.count}곳` : ''}`); }
-  if (has('daiso'))      { s2 += 20; e2.push('다이소'); }
-  if (has('oliveyoung')) { s2 += 15; e2.push('올리브영'); }
-  s2 += cap(fine.convStore * 3, 20);
-
-  // ③ 초품아·항아리(가족 주거지). 유흥 비중은 감점.
-  let s3 = 0; const e3 = [];
-  if (has('baskinrobbins')) { s3 += 22; e3.push('배스킨라빈스'); }
-  if (has('parisbaguette')) { s3 += 22; e3.push('파리바게뜨'); }
-  if (fine.pediatric > 0)   { s3 += cap(fine.pediatric * 12, 24); e3.push(`소아과 ${fine.pediatric}곳`); }
-  if (fine.academy > 0)     { s3 += cap(eduR * 120, 20); if (eduR >= 0.16) e3.push('학원가'); }
-  s3 -= cap(barR * 200, 20);
-
-  // ④ 맥세권·편세권 (편의 인프라)
-  let s4 = 0; const e4 = [];
-  if (has('mcdonalds'))   { s4 += 25; e4.push('맥도날드'); }
-  if (has('daiso'))       { s4 += 15; e4.push('다이소'); }
-  if (fine.convStore > 0) { s4 += cap(fine.convStore * 4, 40); e4.push(`편의점 ${fine.convStore}곳`); }
-
-  // ⑤ 펫세권·여가
-  let s5 = 0; const e5 = [];
-  if (fine.animalHosp > 0) { s5 += cap(fine.animalHosp * 14, 42); e5.push(`동물병원·반려 ${fine.animalHosp}곳`); }
-  if (fine.fitness > 0)    { s5 += cap(fine.fitness * 10, 30); e5.push(`필라테스·헬스 ${fine.fitness}곳`); }
-  s5 += cap(cafeR * 120, 15);
-
-  const idx = (label, s, ev) => { const c = clamp(s); return { label, score: c, level: level(c), evidence: ev }; };
-
-  // 배지: 조건 충족한 것만 (한눈에 보이는 '도장')
-  const badges = [];
-  if (has('starbucks'))  badges.push('스세권');
-  if (has('daiso'))      badges.push('다세권');
-  if (has('mcdonalds'))  badges.push('맥세권');
-  if (has('oliveyoung')) badges.push('올세권');
-  if (fine.animalHosp >= 2) badges.push('펫세권');
-  if (has('photobooth')) badges.push('인생네컷존');
-  if (fine.fitness >= 2) badges.push('헬스·필라');
-  if (((has('baskinrobbins') ? 1 : 0) + (has('parisbaguette') ? 1 : 0) + (fine.pediatric > 0 ? 1 : 0)) >= 2) badges.push('항아리상권');
-
-  return {
-    badges,
-    lifestyle: {
-      single2030:  idx('2030 싱글·활력', s1, e1),
-      infra:       idx('스세권·검증 인프라', s2, e2),
-      family:      idx('초품아·항아리', s3, e3),
-      convenience: idx('맥세권·편세권', s4, e4),
-      pet:         idx('펫세권·여가', s5, e5),
-    },
-  };
-}
-
 module.exports = async function handler(req, res) {
   try {
     const serviceKey = process.env.SBIZ_API_KEY || process.env.MOLIT_API_KEY;
@@ -346,8 +242,6 @@ module.exports = async function handler(req, res) {
     const byMcls = {};   // 중분류명 → 건수
     const derived = { cafe: 0, bar: 0, restaurant: 0, convenience: 0, medical: 0, education: 0, beauty: 0, fashion: 0, living: 0, leisure: 0 };
     const allMarkers = [];
-    const brandHits = {};   // 브랜드키 → {count, nearestM}
-    const fine = { pediatric: 0, animalHosp: 0, fitness: 0, academy: 0, convStore: 0 };
 
     for (const it of items) {
       const lcls = (it.indsLclsNm || '기타').trim();
@@ -358,22 +252,7 @@ module.exports = async function handler(req, res) {
       if (mcls) byMcls[mcls] = (byMcls[mcls] || 0) + 1;
       for (const tag of tagOf(mcls, scls)) derived[tag] += 1;
 
-      // 세부 카테고리(업종+상호명)·브랜드(상호명) 탐지
-      const hay = `${mcls} ${scls} ${name}`;
-      for (const k in FINE) if (FINE[k].test(hay)) fine[k] += 1;
-
       const mlng = Number(it.lon), mlat = Number(it.lat);
-      for (const k in BRANDS) {
-        if (BRANDS[k].re.test(name)) {
-          const h = brandHits[k] || (brandHits[k] = { count: 0, nearestM: Infinity });
-          h.count += 1;
-          if (Number.isFinite(mlng) && Number.isFinite(mlat)) {
-            const dm = distM(lat, lng, mlat, mlng);
-            if (dm < h.nearestM) h.nearestM = dm;
-          }
-        }
-      }
-
       if (Number.isFinite(mlng) && Number.isFinite(mlat)) {
         allMarkers.push({ name, lcls, mcls, lng: mlng, lat: mlat });
       }
@@ -397,15 +276,6 @@ module.exports = async function handler(req, res) {
     const stat = { total: totalCount, collected, density, diversity, derived, byLcls: lclsArr };
     const vibe = deriveVibe(stat);
 
-    // 브랜드 요약 + 5대 생활지표·배지
-    const brands = {};
-    for (const k in BRANDS) {
-      const h = brandHits[k];
-      brands[k] = { label: BRANDS[k].label, present: !!h, count: h ? h.count : 0,
-        nearestM: h && Number.isFinite(h.nearestM) ? h.nearestM : null };
-    }
-    const { badges, lifestyle } = buildLifestyle(brands, fine, derived);
-
     // CDN 캐싱: 상가정보는 분기 단위 갱신이라 변동이 느리다. 6시간 신선 + 1일 stale-while-revalidate.
     //   캐시 키=좌표+반경이라 같은 장소 재조회는 즉시 응답되고 소상공인 API 부하도 0.
     res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
@@ -417,16 +287,11 @@ module.exports = async function handler(req, res) {
       density,                     // 점포/㎢
       diversity,                   // 업종 다양성 0~1
       vibe,                        // { headline, tags }
-      badges,                      // 충족된 생활배지 ['스세권','펫세권', ...]
-      lifestyle,                   // 5대 생활지표 {single2030, infra, family, convenience, pet} 각 {score,level,evidence}
-      brands,                      // 브랜드별 {present,count,nearestM(직선 m)}
-      fine,                        // 세부 카테고리 카운트 {pediatric,animalHosp,fitness,academy,convStore}
-      brandsPartial: collected < totalCount,  // true면 표본 밖 점포 누락 가능(브랜드 '없음'이 불완전할 수 있음)
       byLcls: lclsArr,             // 대분류 구성 [{name,count}]
       byMcls: sortDesc(byMcls).slice(0, 12),  // 중분류 상위 12
       derived,                     // 카페/술집/음식점/편의/의료/학원 등 파생 카운트
       markers,                     // 지도용 좌표(최대 600)
-      disclaimer: '소상공인시장진흥공단 상가(상권)정보 기준이며 분기 단위로 갱신됩니다. 신규/폐업 반영에 시차가 있고, 업종·상호명 키워드로 분류·매칭해 일부 오분류·누락이 있을 수 있습니다. 생활지표/배지는 프랜차이즈 입점을 배후수요의 대리지표로 본 룰베이스 추정이며, 영업시간(24시간·DT)·공원 근접은 데이터에 없어 반영되지 않습니다. 밀도·분위기는 표본 기반 추정입니다.',
+      disclaimer: '소상공인시장진흥공단 상가(상권)정보 기준이며 분기 단위로 갱신됩니다. 신규/폐업 반영에 시차가 있고, 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기는 표본 기반 추정입니다.',
     });
   } catch (e) {
     const aborted = e && e.name === 'AbortError';
