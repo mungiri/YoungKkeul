@@ -153,23 +153,7 @@
   .dchip .db{font-size:11px; font-weight:600; margin-top:4px;}
   .dchip .db .pc{color:var(--sub); font-weight:500;}
   .band-hi{color:var(--green);} .band-mid{color:var(--sub);} .band-lo{color:var(--dim);}
-  /* 생활 배지(도장) */
-  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
-  .badge{display:inline-flex; align-items:center; padding:7px 13px; border-radius:9999px; font-size:14px; font-weight:700; background:var(--gold); color:#fff; letter-spacing:-.2px;}
-  .badge.muted{background:var(--track); color:var(--dim); font-weight:600;}
-  /* 5대 생활 밀착 지표 */
-  .lsrow{padding:13px 0; border-bottom:1px solid var(--line);}
-  .lsrow:last-child{border-bottom:none;}
-  .lshead{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .lslabel{font-size:14px; font-weight:600; color:var(--ink);}
-  .lslevel{font-size:12px; font-weight:700; padding:2px 9px; border-radius:9999px; white-space:nowrap; font-variant-numeric:tabular-nums;}
-  .lv-hi{background:rgba(52,199,89,.14); color:var(--green);} .lv-mid{background:var(--tint); color:var(--gold);} .lv-lo{background:var(--track); color:var(--dim);}
-  .lsbar{height:7px; background:var(--track); border-radius:9999px; overflow:hidden; margin-top:8px;}
-  .lsbar .f{height:100%; background:var(--gold); border-radius:9999px; transition:width .4s ease;}
-  .lsev{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
-  .lsev span{font-size:12px; color:var(--sub); background:var(--bg); padding:3px 9px; border-radius:8px;}
-  .lsev .none{color:var(--dim);}
-  /* 대표 브랜드 거리 */
+  /* 생활 밀착 브랜드 체크리스트 */
   .brandgrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:4px;}
   .brandcell{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:var(--bg); border-radius:10px; font-size:13px;}
   .brandcell .bnm{font-weight:600; color:var(--ink);}
@@ -371,7 +355,6 @@
       <div class="res-label" style="margin-bottom:10px;">동네 분위기</div>
       <div class="vibe-headline" id="areaHeadline">–</div>
       <div class="vibe-tags" id="areaTags"></div>
-      <div class="badge-row" id="areaBadges"></div>
       <div class="grid3" style="margin-top:18px;">
         <div class="stat"><div class="k">반경 내 점포</div><div class="v" id="areaTotal">–</div></div>
         <div class="stat"><div class="k">점포 밀도(/㎢)</div><div class="v" id="areaDensity">–</div></div>
@@ -1225,14 +1208,14 @@ const DERIVED_THR={
 // 생활 밀착 브랜드 — 카카오 지역검색으로 반경 내 '유무'를 직접 확인한다.
 //   (소상공인 상가데이터엔 스타벅스·다이소 등 대형 직영 브랜드가 누락돼 있어 그 데이터로는 못 잡음)
 const BRAND_SEARCH=[
-  {key:'starbucks',     q:'스타벅스',     label:'스타벅스',      badge:'스세권'},
-  {key:'daiso',         q:'다이소',       label:'다이소',        badge:'다세권'},
-  {key:'oliveyoung',    q:'올리브영',     label:'올리브영',      badge:'올세권'},
-  {key:'mcdonalds',     q:'맥도날드',     label:'맥도날드',      badge:'맥세권'},
-  {key:'yupdduk',       q:'엽기떡볶이',   label:'엽기떡볶이',    badge:'2030핫플'},
-  {key:'parisbaguette', q:'파리바게뜨',   label:'파리바게뜨',    badge:'항아리상권'},
-  {key:'animalHosp',    q:'동물병원',     label:'동물병원',      badge:'펫세권'},
-  {key:'studycafe',     q:'스터디카페',   label:'스터디카페',    badge:'스터디세권'},
+  {key:'starbucks',     q:'스타벅스',     label:'스타벅스'},
+  {key:'daiso',         q:'다이소',       label:'다이소'},
+  {key:'oliveyoung',    q:'올리브영',     label:'올리브영'},
+  {key:'mcdonalds',     q:'맥도날드',     label:'맥도날드'},
+  {key:'yupdduk',       q:'엽기떡볶이',   label:'엽기떡볶이'},
+  {key:'parisbaguette', q:'파리바게뜨',   label:'파리바게뜨'},
+  {key:'animalHosp',    q:'동물병원',     label:'동물병원'},
+  {key:'studycafe',     q:'스터디카페',   label:'스터디카페'},
 ];
 const fmtDist=(m)=> m==null?'있음':(m>=1000?`${(m/1000).toFixed(1)}km`:`${m}m`);
 
@@ -1254,7 +1237,6 @@ function kakaoNearby(q, loc, radius){
 async function renderBrands(data, loc){
   document.getElementById('areaLifePanel').style.display='';
   const loadEl=document.getElementById('areaBrandsLoading'); if(loadEl) loadEl.style.display='';
-  document.getElementById('areaBadges').innerHTML='<span class="badge muted">브랜드 확인 중…</span>';
   const radius=(data.query&&data.query.radius)||500;
   if(!areaPlaces && window.kakao && kakao.maps && kakao.maps.services && kakao.maps.services.Places){ areaPlaces=new kakao.maps.services.Places(); }
 
@@ -1263,14 +1245,7 @@ async function renderBrands(data, loc){
   catch(e){ results=BRAND_SEARCH.map(b=>({b, r:{present:false, nearestM:null}})); }
   if(loadEl) loadEl.style.display='none';
 
-  // 배지(있는 '세권'만, 중복 제거)
-  const badges=[];
-  results.forEach(x=>{ if(x.r.present && x.b.badge && badges.indexOf(x.b.badge)<0) badges.push(x.b.badge); });
-  const bWrap=document.getElementById('areaBadges'); bWrap.innerHTML='';
-  if(badges.length){ badges.forEach(t=>{ const s=document.createElement('span'); s.className='badge'; s.textContent='✦ '+t; bWrap.appendChild(s); }); }
-  else{ const s=document.createElement('span'); s.className='badge muted'; s.textContent='해당 배지 없음'; bWrap.appendChild(s); }
-
-  // 체크리스트 (있음+거리 / 없음)
+  // 브랜드 유무 체크리스트 (있음+거리 / 없음)
   const grid=document.getElementById('areaBrands'); grid.innerHTML='';
   results.forEach(x=>{
     const present=x.r.present;
