@@ -153,6 +153,28 @@
   .dchip .db{font-size:11px; font-weight:600; margin-top:4px;}
   .dchip .db .pc{color:var(--sub); font-weight:500;}
   .band-hi{color:var(--green);} .band-mid{color:var(--sub);} .band-lo{color:var(--dim);}
+  /* 생활 배지(도장) */
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
+  .badge{display:inline-flex; align-items:center; padding:7px 13px; border-radius:9999px; font-size:14px; font-weight:700; background:var(--gold); color:#fff; letter-spacing:-.2px;}
+  .badge.muted{background:var(--track); color:var(--dim); font-weight:600;}
+  /* 5대 생활 밀착 지표 */
+  .lsrow{padding:13px 0; border-bottom:1px solid var(--line);}
+  .lsrow:last-child{border-bottom:none;}
+  .lshead{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .lslabel{font-size:14px; font-weight:600; color:var(--ink);}
+  .lslevel{font-size:12px; font-weight:700; padding:2px 9px; border-radius:9999px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .lv-hi{background:rgba(52,199,89,.14); color:var(--green);} .lv-mid{background:var(--tint); color:var(--gold);} .lv-lo{background:var(--track); color:var(--dim);}
+  .lsbar{height:7px; background:var(--track); border-radius:9999px; overflow:hidden; margin-top:8px;}
+  .lsbar .f{height:100%; background:var(--gold); border-radius:9999px; transition:width .4s ease;}
+  .lsev{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .lsev span{font-size:12px; color:var(--sub); background:var(--bg); padding:3px 9px; border-radius:8px;}
+  .lsev .none{color:var(--dim);}
+  /* 대표 브랜드 거리 */
+  .brandgrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:4px;}
+  .brandcell{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:var(--bg); border-radius:10px; font-size:13px;}
+  .brandcell .bnm{font-weight:600; color:var(--ink);}
+  .brandcell .bdist{font-variant-numeric:tabular-nums; color:var(--green); font-weight:600; white-space:nowrap;}
+  .brandcell.absent{opacity:.5;} .brandcell.absent .bdist{color:var(--dim); font-weight:500;}
   /* 클릭 가능한 범례(업종 토글) */
   .legend span.tog{cursor:pointer; user-select:none; padding:3px 9px; border:1px solid var(--line); border-radius:9999px; transition:opacity .12s;}
   .legend span.tog:active{transform:scale(.96);}
@@ -349,6 +371,7 @@
       <div class="res-label" style="margin-bottom:10px;">동네 분위기</div>
       <div class="vibe-headline" id="areaHeadline">–</div>
       <div class="vibe-tags" id="areaTags"></div>
+      <div class="badge-row" id="areaBadges"></div>
       <div class="grid3" style="margin-top:18px;">
         <div class="stat"><div class="k">반경 내 점포</div><div class="v" id="areaTotal">–</div></div>
         <div class="stat"><div class="k">점포 밀도(/㎢)</div><div class="v" id="areaDensity">–</div></div>
@@ -357,6 +380,15 @@
       <div style="margin-top:16px;">
         <div class="derived-grid" id="areaDerived"></div>
       </div>
+    </div>
+
+    <!-- 생활 밀착 지표 (브랜드 매핑) -->
+    <div class="panel" id="areaLifePanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:4px;">생활 밀착 지표</div>
+      <div class="hint" style="margin-bottom:12px;">동네에 자리 잡은 프랜차이즈·생활시설을 배후수요의 신호로 읽은 추정치예요.<span id="areaBrandsPartial" style="display:none; color:var(--gold)"> · 점포가 많아 일부 브랜드는 누락됐을 수 있어요.</span></div>
+      <div id="areaLifestyle"></div>
+      <div class="res-label" style="margin:18px 0 8px;">대표 브랜드 거리</div>
+      <div class="brandgrid" id="areaBrands"></div>
     </div>
 
     <!-- 지도 -->
@@ -1192,6 +1224,61 @@ const DERIVED_THR={
   convenience:{hi:0.20,lo:0.10}, medical:{hi:0.12,lo:0.055}, education:{hi:0.13,lo:0.06},
 };
 
+// 5대 생활 밀착 지표(백엔드 lifestyle 키) 표시 순서·아이콘
+const LS_VIEW=[
+  {key:'single2030', ic:'🛍️'}, {key:'infra', ic:'✅'}, {key:'family', ic:'👨‍👩‍👧'},
+  {key:'convenience', ic:'🏪'}, {key:'pet', ic:'🐾'},
+];
+// 대표 브랜드 거리 표시 순서(백엔드 brands 키)
+const BRAND_VIEW=[
+  ['starbucks','스타벅스'],['oliveyoung','올리브영'],['daiso','다이소'],
+  ['mcdonalds','맥도날드'],['baskinrobbins','배스킨라빈스'],['parisbaguette','파리바게뜨'],
+];
+const lvClass=(lv)=> lv==='강함'?'lv-hi':(lv==='보통'?'lv-mid':'lv-lo');
+const fmtDist=(m)=> m==null?'있음':(m>=1000?`${(m/1000).toFixed(1)}km`:`${m}m`);
+
+// 생활 배지 + 5대 지표 + 대표 브랜드 거리 렌더
+function renderLifestyle(data){
+  const panel=document.getElementById('areaLifePanel');
+  const ls=data.lifestyle;
+  if(!ls){ panel.style.display='none'; return; }   // 구버전 API 호환
+  panel.style.display='';
+
+  // 배지(도장)
+  const bWrap=document.getElementById('areaBadges'); bWrap.innerHTML='';
+  const badges=data.badges||[];
+  if(badges.length){ badges.forEach(b=>{ const s=document.createElement('span'); s.className='badge'; s.textContent='✦ '+b; bWrap.appendChild(s); }); }
+  else{ const s=document.createElement('span'); s.className='badge muted'; s.textContent='해당 배지 없음'; bWrap.appendChild(s); }
+
+  // 5대 지표
+  const lWrap=document.getElementById('areaLifestyle'); lWrap.innerHTML='';
+  LS_VIEW.forEach(v=>{
+    const it=ls[v.key]; if(!it) return;
+    const ev=(it.evidence&&it.evidence.length)
+      ? it.evidence.map(e=>`<span>${e}</span>`).join('')
+      : `<span class="none">신호 없음</span>`;
+    const row=document.createElement('div'); row.className='lsrow';
+    row.innerHTML=
+      `<div class="lshead"><div class="lslabel">${v.ic} ${it.label}</div>`+
+      `<div class="lslevel ${lvClass(it.level)}">${it.level} · ${it.score}</div></div>`+
+      `<div class="lsbar"><div class="f" style="width:${it.score}%"></div></div>`+
+      `<div class="lsev">${ev}</div>`;
+    lWrap.appendChild(row);
+  });
+
+  // 대표 브랜드 거리
+  const brands=data.brands||{};
+  const brWrap=document.getElementById('areaBrands'); brWrap.innerHTML='';
+  BRAND_VIEW.forEach(([k,label])=>{
+    const b=brands[k]||{}; const present=!!b.present;
+    const cnt=present&&b.count>1?` ·${b.count}`:'';
+    const cell=document.createElement('div'); cell.className='brandcell'+(present?'':' absent');
+    cell.innerHTML=`<span class="bnm">${label}${cnt}</span><span class="bdist">${present?fmtDist(b.nearestM):'없음'}</span>`;
+    brWrap.appendChild(cell);
+  });
+  document.getElementById('areaBrandsPartial').style.display=data.brandsPartial?'':'none';
+}
+
 function renderArea(data, loc){
   areaColorMap={};   // 분석마다 색 재배정
   document.getElementById('areaVibePanel').style.display='';
@@ -1222,6 +1309,9 @@ function renderArea(data, loc){
       `<div class="dk">${d.label}</div><div class="db ${band[1]}">${band[0]} <span class="pc">${pct}%</span></div>`;
     dWrap.appendChild(el);
   });
+
+  // 생활 배지 + 5대 생활 밀착 지표 + 대표 브랜드 거리
+  renderLifestyle(data);
 
   // 업종 구성 막대 — 10종 대분류를 6~7개 그룹으로 통합, 색은 지도 마커와 공유
   renderBars(document.getElementById('areaLcls'), groupByLcls(data.byLcls), data.analyzed, true);
