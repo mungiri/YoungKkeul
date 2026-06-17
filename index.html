@@ -382,12 +382,10 @@
       </div>
     </div>
 
-    <!-- 생활 밀착 지표 (브랜드 매핑) -->
+    <!-- 생활 밀착 브랜드 (카카오 지도 기준 유무) -->
     <div class="panel" id="areaLifePanel" style="display:none;">
-      <div class="res-label" style="margin-bottom:4px;">생활 밀착 지표</div>
-      <div class="hint" style="margin-bottom:12px;">동네에 자리 잡은 프랜차이즈·생활시설을 배후수요의 신호로 읽은 추정치예요.<span id="areaBrandsPartial" style="display:none; color:var(--gold)"> · 점포가 많아 일부 브랜드는 누락됐을 수 있어요.</span></div>
-      <div id="areaLifestyle"></div>
-      <div class="res-label" style="margin:18px 0 8px;">대표 브랜드 거리</div>
+      <div class="res-label" style="margin-bottom:4px;">생활 밀착 브랜드</div>
+      <div class="hint" style="margin-bottom:12px;">반경 내 주요 브랜드·생활시설이 <b>있는지</b>를 카카오 지도에서 직접 확인했어요. <span id="areaBrandsLoading" style="color:var(--gold)">확인 중…</span></div>
       <div class="brandgrid" id="areaBrands"></div>
     </div>
 
@@ -1224,59 +1222,63 @@ const DERIVED_THR={
   convenience:{hi:0.20,lo:0.10}, medical:{hi:0.12,lo:0.055}, education:{hi:0.13,lo:0.06},
 };
 
-// 5대 생활 밀착 지표(백엔드 lifestyle 키) 표시 순서·아이콘
-const LS_VIEW=[
-  {key:'single2030', ic:'🛍️'}, {key:'infra', ic:'✅'}, {key:'family', ic:'👨‍👩‍👧'},
-  {key:'convenience', ic:'🏪'}, {key:'pet', ic:'🐾'},
+// 생활 밀착 브랜드 — 카카오 지역검색으로 반경 내 '유무'를 직접 확인한다.
+//   (소상공인 상가데이터엔 스타벅스·다이소 등 대형 직영 브랜드가 누락돼 있어 그 데이터로는 못 잡음)
+const BRAND_SEARCH=[
+  {key:'starbucks',     q:'스타벅스',     label:'스타벅스',      badge:'스세권'},
+  {key:'daiso',         q:'다이소',       label:'다이소',        badge:'다세권'},
+  {key:'oliveyoung',    q:'올리브영',     label:'올리브영',      badge:'올세권'},
+  {key:'mcdonalds',     q:'맥도날드',     label:'맥도날드',      badge:'맥세권'},
+  {key:'baskinrobbins', q:'배스킨라빈스', label:'배스킨라빈스',  badge:'항아리상권'},
+  {key:'parisbaguette', q:'파리바게뜨',   label:'파리바게뜨',    badge:'항아리상권'},
+  {key:'animalHosp',    q:'동물병원',     label:'동물병원',      badge:'펫세권'},
+  {key:'pilates',       q:'필라테스',     label:'필라테스·헬스', badge:'헬스·필라'},
 ];
-// 대표 브랜드 거리 표시 순서(백엔드 brands 키)
-const BRAND_VIEW=[
-  ['starbucks','스타벅스'],['oliveyoung','올리브영'],['daiso','다이소'],
-  ['mcdonalds','맥도날드'],['baskinrobbins','배스킨라빈스'],['parisbaguette','파리바게뜨'],
-];
-const lvClass=(lv)=> lv==='강함'?'lv-hi':(lv==='보통'?'lv-mid':'lv-lo');
 const fmtDist=(m)=> m==null?'있음':(m>=1000?`${(m/1000).toFixed(1)}km`:`${m}m`);
 
-// 생활 배지 + 5대 지표 + 대표 브랜드 거리 렌더
-function renderLifestyle(data){
-  const panel=document.getElementById('areaLifePanel');
-  const ls=data.lifestyle;
-  if(!ls){ panel.style.display='none'; return; }   // 구버전 API 호환
-  panel.style.display='';
+// 카카오 지역검색: 반경 내 키워드 유무 + 가장 가까운 거리(m)
+function kakaoNearby(q, loc, radius){
+  return new Promise((resolve)=>{
+    if(!areaPlaces){ resolve({present:false, nearestM:null}); return; }
+    areaPlaces.keywordSearch(q, (list, status)=>{
+      if(status!==kakao.maps.services.Status.OK || !list || !list.length){ resolve({present:false, nearestM:null}); return; }
+      const within=list.filter(p=>p.distance!=='' && +p.distance<=radius);
+      if(!within.length){ resolve({present:false, nearestM:null}); return; }
+      const near=Math.min.apply(null, within.map(p=>+p.distance));
+      resolve({present:true, nearestM:near});
+    }, {location:new kakao.maps.LatLng(loc.lat, loc.lng), radius:Math.min(radius,20000), sort:kakao.maps.services.SortBy.DISTANCE});
+  });
+}
 
-  // 배지(도장)
+// 배지 + 브랜드 유무 체크리스트 (점수 없이 '있음/없음'만)
+async function renderBrands(data, loc){
+  document.getElementById('areaLifePanel').style.display='';
+  const loadEl=document.getElementById('areaBrandsLoading'); if(loadEl) loadEl.style.display='';
+  document.getElementById('areaBadges').innerHTML='<span class="badge muted">브랜드 확인 중…</span>';
+  const radius=(data.query&&data.query.radius)||500;
+  if(!areaPlaces && window.kakao && kakao.maps && kakao.maps.services && kakao.maps.services.Places){ areaPlaces=new kakao.maps.services.Places(); }
+
+  let results;
+  try{ results=await Promise.all(BRAND_SEARCH.map(b=>kakaoNearby(b.q, loc, radius).then(r=>({b, r})))); }
+  catch(e){ results=BRAND_SEARCH.map(b=>({b, r:{present:false, nearestM:null}})); }
+  if(loadEl) loadEl.style.display='none';
+
+  // 배지(있는 '세권'만, 중복 제거)
+  const badges=[];
+  results.forEach(x=>{ if(x.r.present && x.b.badge && badges.indexOf(x.b.badge)<0) badges.push(x.b.badge); });
   const bWrap=document.getElementById('areaBadges'); bWrap.innerHTML='';
-  const badges=data.badges||[];
-  if(badges.length){ badges.forEach(b=>{ const s=document.createElement('span'); s.className='badge'; s.textContent='✦ '+b; bWrap.appendChild(s); }); }
+  if(badges.length){ badges.forEach(t=>{ const s=document.createElement('span'); s.className='badge'; s.textContent='✦ '+t; bWrap.appendChild(s); }); }
   else{ const s=document.createElement('span'); s.className='badge muted'; s.textContent='해당 배지 없음'; bWrap.appendChild(s); }
 
-  // 5대 지표
-  const lWrap=document.getElementById('areaLifestyle'); lWrap.innerHTML='';
-  LS_VIEW.forEach(v=>{
-    const it=ls[v.key]; if(!it) return;
-    const ev=(it.evidence&&it.evidence.length)
-      ? it.evidence.map(e=>`<span>${e}</span>`).join('')
-      : `<span class="none">신호 없음</span>`;
-    const row=document.createElement('div'); row.className='lsrow';
-    row.innerHTML=
-      `<div class="lshead"><div class="lslabel">${v.ic} ${it.label}</div>`+
-      `<div class="lslevel ${lvClass(it.level)}">${it.level} · ${it.score}</div></div>`+
-      `<div class="lsbar"><div class="f" style="width:${it.score}%"></div></div>`+
-      `<div class="lsev">${ev}</div>`;
-    lWrap.appendChild(row);
-  });
-
-  // 대표 브랜드 거리
-  const brands=data.brands||{};
-  const brWrap=document.getElementById('areaBrands'); brWrap.innerHTML='';
-  BRAND_VIEW.forEach(([k,label])=>{
-    const b=brands[k]||{}; const present=!!b.present;
-    const cnt=present&&b.count>1?` ·${b.count}`:'';
+  // 체크리스트 (있음+거리 / 없음)
+  const grid=document.getElementById('areaBrands'); grid.innerHTML='';
+  results.forEach(x=>{
+    const present=x.r.present;
     const cell=document.createElement('div'); cell.className='brandcell'+(present?'':' absent');
-    cell.innerHTML=`<span class="bnm">${label}${cnt}</span><span class="bdist">${present?fmtDist(b.nearestM):'없음'}</span>`;
-    brWrap.appendChild(cell);
+    cell.innerHTML=`<span class="bnm">${present?'✓ ':'· '}${x.b.label}</span>`+
+      `<span class="bdist">${present?fmtDist(x.r.nearestM):'없음'}</span>`;
+    grid.appendChild(cell);
   });
-  document.getElementById('areaBrandsPartial').style.display=data.brandsPartial?'':'none';
 }
 
 function renderArea(data, loc){
@@ -1310,8 +1312,8 @@ function renderArea(data, loc){
     dWrap.appendChild(el);
   });
 
-  // 생활 배지 + 5대 생활 밀착 지표 + 대표 브랜드 거리
-  renderLifestyle(data);
+  // 생활 배지 + 브랜드 유무 체크리스트 (카카오 지역검색)
+  renderBrands(data, loc);
 
   // 업종 구성 막대 — 10종 대분류를 6~7개 그룹으로 통합, 색은 지도 마커와 공유
   renderBars(document.getElementById('areaLcls'), groupByLcls(data.byLcls), data.analyzed, true);
