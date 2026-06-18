@@ -1343,7 +1343,7 @@ async function loadAiComment(data, loc, derivedSummary){
       // 키 미설정(503)은 일반 사용자에게 노출할 필요 없으니 패널 자체를 숨긴다
       if(res.status===503){ panel.style.display='none'; return; }
       loadEl.style.color='var(--dim)';
-      loadEl.textContent='AI 코멘트를 불러오지 못했어요. '+(j.error||'');
+      loadEl.textContent='AI 코멘트를 불러오지 못했어요. '+(j.error||'')+(j.detail?` — ${j.detail}`:'');
       return;
     }
     loadEl.style.display='none';
