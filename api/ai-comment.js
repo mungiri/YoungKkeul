@@ -93,40 +93,68 @@ module.exports = async function handler(req, res) {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
   if (!body || typeof body !== 'object') { res.status(400).json({ error: '분석 요약(JSON)이 필요합니다.' }); return; }
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  // 무료 할당량은 '모델별'로 따로 부여돼서, 어떤 모델은 limit:0(429)일 수 있다.
+  // 그래서 후보 모델을 순서대로 시도하다 무료 할당량이 살아있는 모델에서 성공하면 멈춘다.
+  //   - 429(할당량 초과) / 404(모델 없음) → 다음 모델로 폴백
+  //   - 400/403(요청·인증·키 제한 오류) → 폴백해도 똑같이 실패하므로 즉시 중단
+  const envModel = process.env.GEMINI_MODEL;
+  const candidates = [...new Set([
+    envModel,
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ].filter(Boolean))];
+
   const payload = {
     contents: [{ parts: [{ text: buildPrompt(body) }] }],
     generationConfig: { temperature: 0.6, maxOutputTokens: 700, topP: 0.95 },
   };
 
-  try {
-    const r = await timedFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }, 25000);
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      res.status(502).json({ error: 'AI 코멘트 생성 실패', detail: (j.error && j.error.message) || r.statusText });
+  let lastErr = { status: 502, error: 'AI 코멘트 생성 실패', detail: '알 수 없는 오류' };
+
+  for (const model of candidates) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    try {
+      const r = await timedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }, 25000);
+      const j = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        const detail = (j.error && j.error.message) || r.statusText;
+        lastErr = { status: 502, error: 'AI 코멘트 생성 실패', detail: `[${model}] ${detail}` };
+        // 할당량 초과(429)·모델 없음(404)만 다음 후보로 폴백. 그 외(400/401/403)는 즉시 중단.
+        if (r.status === 429 || r.status === 404) continue;
+        break;
+      }
+
+      const cand = j.candidates && j.candidates[0];
+      const text = cand && cand.content && Array.isArray(cand.content.parts)
+        ? cand.content.parts.map(p => p.text || '').join('').trim()
+        : '';
+      if (!text) {
+        lastErr = { status: 502, error: 'AI가 코멘트를 생성하지 못했습니다.', detail: `[${model}] ${(cand && cand.finishReason) || 'empty'}` };
+        continue;   // 빈 응답이면 다른 모델로 한 번 더 시도
+      }
+
+      // 같은 좌표/요약은 결과가 비슷하므로 CDN에 잠깐 캐싱
+      res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      res.status(200).json({ comment: text, model });
       return;
+    } catch (e) {
+      const aborted = e && e.name === 'AbortError';
+      lastErr = {
+        status: aborted ? 504 : 502,
+        error: aborted ? 'AI 서버 응답이 지연됩니다. 잠시 후 다시 시도해주세요.' : 'AI 코멘트 생성 중 오류',
+        detail: `[${model}] ${e.message}`,
+      };
+      if (aborted) break;   // 타임아웃은 다음 모델도 느릴 가능성이 커서 중단
     }
-    const cand = j.candidates && j.candidates[0];
-    const text = cand && cand.content && Array.isArray(cand.content.parts)
-      ? cand.content.parts.map(p => p.text || '').join('').trim()
-      : '';
-    if (!text) {
-      res.status(502).json({ error: 'AI가 코멘트를 생성하지 못했습니다.', detail: (cand && cand.finishReason) || 'empty' });
-      return;
-    }
-    // 같은 좌표/요약은 결과가 비슷하므로 CDN에 잠깐 캐싱
-    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
-    res.status(200).json({ comment: text, model });
-  } catch (e) {
-    const aborted = e && e.name === 'AbortError';
-    res.status(aborted ? 504 : 502).json({
-      error: aborted ? 'AI 서버 응답이 지연됩니다. 잠시 후 다시 시도해주세요.' : 'AI 코멘트 생성 중 오류',
-      detail: e.message,
-    });
   }
+
+  res.status(lastErr.status).json({ error: lastErr.error, detail: lastErr.detail });
 };
