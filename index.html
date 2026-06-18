@@ -1417,7 +1417,8 @@ function drawAreaMap(data, loc){
   // 반경에 맞춰 줌
   const lvl=data.query.radius>=1000?6:(data.query.radius>=500?5:4);
   areaMap.setLevel(lvl);
-  setTimeout(()=>areaMap.relayout&&areaMap.relayout(),60);
+  // 컨테이너 크기 확정(relayout) 후 중심을 다시 잡아야 좌상단 쏠림 없이 정중앙에 온다
+  setTimeout(()=>{ if(areaMap.relayout) areaMap.relayout(); areaMap.setCenter(center); },60);
 
   // 범례 = 업종 토글 (그룹별, 클릭으로 켜고 끄기)
   const groups=groupByLcls(data.byLcls);
