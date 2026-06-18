@@ -107,14 +107,15 @@ module.exports = async function handler(req, res) {
     'gemini-1.5-flash',
   ].filter(Boolean))];
 
-  const payload = {
-    contents: [{ parts: [{ text: buildPrompt(body) }] }],
-    generationConfig: { temperature: 0.6, maxOutputTokens: 700, topP: 0.95 },
-  };
-
+  const prompt = buildPrompt(body);
   let lastErr = { status: 502, error: 'AI 코멘트 생성 실패', detail: '알 수 없는 오류' };
 
   for (const model of candidates) {
+    // Gemini 2.5 계열은 기본 'thinking'이 출력토큰을 잠식해 답변이 잘린다 → thinking 끄기.
+    const generationConfig = { temperature: 0.6, maxOutputTokens: 1024, topP: 0.95 };
+    if (model.includes('2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig };
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
     try {
       const r = await timedFetch(url, {
