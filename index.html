@@ -365,6 +365,13 @@
       </div>
     </div>
 
+    <!-- AI 분석 코멘트 -->
+    <div class="panel" id="areaAiPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:6px;">🤖 AI 분석 코멘트</div>
+      <div class="hint" id="areaAiLoading" style="margin-bottom:4px;color:var(--gold)">AI가 이 동네 데이터를 읽고 해석하는 중…</div>
+      <div id="areaAiComment" style="line-height:1.7;white-space:pre-line;"></div>
+    </div>
+
     <!-- 생활 밀착 브랜드 (카카오 지도 기준 유무) -->
     <div class="panel" id="areaLifePanel" style="display:none;">
       <div class="res-label" style="margin-bottom:4px;">생활 밀착 브랜드</div>
@@ -1275,12 +1282,14 @@ function renderArea(data, loc){
   const consumerBase=['cafe','restaurant','bar','convenience','beauty','medical','education','fashion','leisure']
     .reduce((s,k)=>s+(der[k]||0),0)||1;
   const dWrap=document.getElementById('areaDerived'); dWrap.innerHTML='';
+  const derivedSummary=[];
   DERIVED_VIEW.forEach(d=>{
     const v=der[d.key]||0;
     const share=v/consumerBase;                 // 소비업종 대비 비중
     const t=DERIVED_THR[d.key]||{hi:0.15,lo:0.06};
     const band = share>=t.hi ? ['비중 높음','band-hi'] : (share<=t.lo ? ['비중 낮음','band-lo'] : ['비중 보통','band-mid']);
     const pct=Math.round(share*100);
+    derivedSummary.push({label:d.label, count:v, pct, band:band[0]});
     const el=document.createElement('div'); el.className='dchip';
     el.innerHTML=`<div class="di">${d.ic}</div><div class="dv">${v.toLocaleString()}<span style="font-size:12px;color:var(--dim);font-weight:500">곳</span></div>`+
       `<div class="dk">${d.label}</div><div class="db ${band[1]}">${band[0]} <span class="pc">${pct}%</span></div>`;
@@ -1289,6 +1298,9 @@ function renderArea(data, loc){
 
   // 생활 배지 + 브랜드 유무 체크리스트 (카카오 지역검색)
   renderBrands(data, loc);
+
+  // AI 분석 코멘트 — 위에서 만든 요약을 서버(Gemini)로 보내 일반인용 해석을 받는다
+  loadAiComment(data, loc, derivedSummary);
 
   // 업종 구성 막대 — 10종 대분류를 6~7개 그룹으로 통합, 색은 지도 마커와 공유
   renderBars(document.getElementById('areaLcls'), groupByLcls(data.byLcls), data.analyzed, true);
@@ -1300,6 +1312,47 @@ function renderArea(data, loc){
 
   // 서울 행정동 심화(V2) — 서울이면 오버레이
   loadSeoulOverlay(loc);
+}
+
+/* ===== AI 분석 코멘트 (Gemini, 서버리스 경유) ===== */
+let aiCommentSeq=0;   // 빠른 재분석 시 이전 응답이 늦게 와서 덮어쓰는 것 방지
+async function loadAiComment(data, loc, derivedSummary){
+  const panel=document.getElementById('areaAiPanel');
+  const loadEl=document.getElementById('areaAiLoading');
+  const out=document.getElementById('areaAiComment');
+  const seq=++aiCommentSeq;
+  panel.style.display=''; out.textContent=''; loadEl.style.display='';
+  loadEl.style.color='var(--gold)'; loadEl.textContent='AI가 이 동네 데이터를 읽고 해석하는 중…';
+
+  const summary={
+    label: loc.label||'',
+    radius: (data.query&&data.query.radius)||areaRadius||500,
+    total: data.total, density: data.density, diversity: data.diversity,
+    vibe: data.vibe||{},
+    derived: derivedSummary||[],
+    topCategories: (groupByLcls(data.byLcls)||[]).slice(0,6).map(x=>({name:x.name,count:x.count})),
+  };
+
+  try{
+    const res=await fetch('/api/ai-comment',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(summary),
+    });
+    const j=await res.json().catch(()=>({}));
+    if(seq!==aiCommentSeq) return;                 // 더 최신 분석이 시작됨 → 폐기
+    if(!res.ok||!j.comment){
+      // 키 미설정(503)은 일반 사용자에게 노출할 필요 없으니 패널 자체를 숨긴다
+      if(res.status===503){ panel.style.display='none'; return; }
+      loadEl.style.color='var(--dim)';
+      loadEl.textContent='AI 코멘트를 불러오지 못했어요. '+(j.error||'');
+      return;
+    }
+    loadEl.style.display='none';
+    out.textContent=j.comment;
+  }catch(e){
+    if(seq!==aiCommentSeq) return;
+    loadEl.style.color='var(--dim)';
+    loadEl.textContent='AI 코멘트를 불러오지 못했어요. (네트워크 오류)';
+  }
 }
 
 /* ===== 서울 행정동 심화(V2) ===== */
