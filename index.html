@@ -365,6 +365,32 @@
       <p class="lede">집을 보러 다닐 때 항목별로 체크하면 두 분만의 가중치로 최종 점수를 자동 계산합니다. 여러 집의 장단점을 한눈에 비교해보세요.</p>
     </div>
 
+    <!-- 기기 간 동기화 (공유 코드) -->
+    <div class="panel" id="ckSyncPanel" style="margin-top:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="res-label" style="margin:0;">🔗 기기 간 동기화</div>
+        <span id="ckSyncState" class="hint" style="margin:0;white-space:nowrap;"></span>
+      </div>
+      <div id="ckSyncDisconnected">
+        <div class="hint" style="margin:6px 0 10px;">폰·컴퓨터에서 같은 코드를 입력하면 매물 목록이 자동으로 동기화돼요. 로그인·개인정보 없이 코드 하나만 공유하세요.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input id="ckSyncInput" placeholder="공유 코드 입력" maxlength="32" autocapitalize="characters" autocomplete="off"
+            style="flex:1;min-width:140px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-family:inherit;letter-spacing:2px;text-transform:uppercase;color:var(--ink);background:var(--bg);outline:none;"/>
+          <button class="act-btn" id="ckSyncJoin">연결</button>
+          <button class="toggle-btn" id="ckSyncNew" style="color:var(--gold);border-color:var(--gold);font-weight:600;">+ 새 코드 생성</button>
+        </div>
+      </div>
+      <div id="ckSyncConnected" style="display:none;">
+        <div class="hint" style="margin:6px 0 8px;">아래 코드를 다른 기기에서 입력하면 같은 목록을 볼 수 있어요.</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <code id="ckSyncCodeShow" style="font-size:20px;font-weight:700;letter-spacing:3px;color:var(--gold);background:var(--track);padding:8px 14px;border-radius:9px;font-family:inherit;"></code>
+          <button class="act-btn" id="ckSyncCopy">복사</button>
+          <button class="act-btn" id="ckSyncPullBtn">새로고침</button>
+          <button class="act-btn" id="ckSyncLeave" style="color:var(--red);border-color:var(--red);margin-left:auto;">연결 해제</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 임장 모드 토글 -->
     <div class="stage-chips" id="ckModeChips" style="margin-top:16px;">
       <button class="toggle-btn on" data-mode="all">🏠 집까지 보기</button>
@@ -1064,6 +1090,9 @@ let ckProps = [];
 let ckInited = false;
 let ckOutOnly = false;      // 동네 임장 모드: 집 내부 항목 숨김
 let ckSortKey = 'total';    // 순위표 정렬 기준: total | place | value
+let ckSyncCode = null;      // 기기 간 공유 코드 (없으면 미연결)
+let ckPushTimer = null;     // 푸시 디바운스 타이머
+let ckApplyingRemote = false; // 서버 데이터 적용 중 (푸시 에코 방지)
 
 // 현재 모드에서 보이는 항목/카테고리/영역
 function ckVisibleItems(){ return ckOutOnly ? CHECK_ITEMS.filter(i=>i.area==='out') : CHECK_ITEMS; }
@@ -1082,6 +1111,78 @@ function ckEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</
 function ckSaveState(){
   try{ localStorage.setItem('ykk_ck_weights', JSON.stringify(ckWeights));
        localStorage.setItem('ykk_ck_props', JSON.stringify(ckProps)); }catch(e){}
+  if(ckSyncCode && !ckApplyingRemote) ckSchedulePush();
+}
+
+/* ── 기기 간 동기화 (공유 코드 + /api/sync) ── */
+function ckSyncPayload(){ return { weights: ckWeights, props: ckProps }; }
+function ckApplyPayload(d){
+  if(d && typeof d==='object'){
+    if(d.weights && typeof d.weights==='object') ckWeights = d.weights;
+    if(Array.isArray(d.props)) ckProps = d.props;
+  }
+}
+function ckGenCode(){
+  const al='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 0/1/I/O/L 등 헷갈리는 문자 제외
+  let out='';
+  try{ const a=new Uint32Array(8); crypto.getRandomValues(a);
+       out=Array.from(a,n=>al[n%al.length]).join(''); }
+  catch(e){ for(let i=0;i<8;i++) out+=al[Math.floor(Math.random()*al.length)]; }
+  return out;
+}
+function ckTimeStr(ms){
+  if(!ms) return '';
+  const d=new Date(ms), p=n=>String(n).padStart(2,'0');
+  return p(d.getHours())+':'+p(d.getMinutes());
+}
+function ckSetSyncStatus(msg,isErr){
+  const el=document.getElementById('ckSyncState'); if(!el) return;
+  el.textContent=msg||''; el.style.color=isErr?'var(--red)':'var(--sub)';
+}
+function ckRenderSync(){
+  const dis=document.getElementById('ckSyncDisconnected');
+  const con=document.getElementById('ckSyncConnected');
+  if(!dis||!con) return;
+  if(ckSyncCode){ dis.style.display='none'; con.style.display='';
+    document.getElementById('ckSyncCodeShow').textContent=ckSyncCode; }
+  else{ dis.style.display=''; con.style.display='none'; }
+}
+function ckSyncSetCode(code){
+  ckSyncCode = code || null;
+  try{ if(code) localStorage.setItem('ykk_sync_code',code);
+       else localStorage.removeItem('ykk_sync_code'); }catch(e){}
+  ckRenderSync();
+}
+function ckSchedulePush(){ clearTimeout(ckPushTimer); ckPushTimer=setTimeout(ckSyncPush,1200); }
+async function ckSyncPush(){
+  if(!ckSyncCode) return;
+  ckSetSyncStatus('동기화 중…');
+  try{
+    const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:ckSyncCode, data:ckSyncPayload()})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.hint||j.error||('HTTP '+r.status));
+    ckSetSyncStatus('저장됨 · '+ckTimeStr(j.updatedAt));
+  }catch(e){ ckSetSyncStatus('동기화 실패: '+e.message, true); }
+}
+async function ckSyncPull(){
+  if(!ckSyncCode) return;
+  ckSetSyncStatus('불러오는 중…');
+  try{
+    const r=await fetch('/api/sync?code='+encodeURIComponent(ckSyncCode));
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.hint||j.error||('HTTP '+r.status));
+    if(j.empty || !j.data){                 // 서버에 아직 없음 → 이 기기 데이터를 올림
+      ckSetSyncStatus('연결됨 · 이 기기 데이터 업로드 중');
+      ckSyncPush(); return;
+    }
+    ckApplyingRemote=true;
+    ckApplyPayload(j.data);
+    ckSaveState();                          // 로컬에도 저장 (가드로 푸시 안 됨)
+    ckApplyingRemote=false;
+    ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
+    ckSetSyncStatus('동기화됨 · '+ckTimeStr(j.updatedAt));
+  }catch(e){ ckApplyingRemote=false; ckSetSyncStatus('불러오기 실패: '+e.message, true); }
 }
 function ckLoadState(){
   try{
@@ -1388,6 +1489,32 @@ function initCheckView(){
     setTimeout(()=>{ const cards=document.querySelectorAll('[id^=ckCard]');
       if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'start'}); },100);
   });
+
+  // ── 동기화(공유 코드) 버튼 ──
+  ckSyncCode = (function(){ try{ return localStorage.getItem('ykk_sync_code')||null; }catch(e){ return null; } })();
+  ckRenderSync();
+  if(ckSyncCode) ckSyncPull();
+
+  document.getElementById('ckSyncNew')?.addEventListener('click',()=>{
+    ckSyncSetCode(ckGenCode());
+    ckSyncPull();    // 서버가 비어 있으면 현재 기기 데이터를 업로드
+  });
+  document.getElementById('ckSyncJoin')?.addEventListener('click',()=>{
+    const v=(document.getElementById('ckSyncInput').value||'').trim().toUpperCase();
+    if(!/^[A-Z0-9]{4,32}$/.test(v)){ ckSetSyncStatus('코드 형식 오류 (영문/숫자 4자 이상)',true); return; }
+    ckSyncSetCode(v);
+    ckSyncPull();
+  });
+  document.getElementById('ckSyncInput')?.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('ckSyncJoin').click(); });
+  document.getElementById('ckSyncCopy')?.addEventListener('click',()=>{
+    if(navigator.clipboard) navigator.clipboard.writeText(ckSyncCode).then(()=>ckSetSyncStatus('코드 복사됨')).catch(()=>{});
+  });
+  document.getElementById('ckSyncPullBtn')?.addEventListener('click',()=>ckSyncPull());
+  document.getElementById('ckSyncLeave')?.addEventListener('click',()=>{
+    ckSyncSetCode(null); ckSetSyncStatus('연결 해제됨 (데이터는 이 기기에 남아 있어요)');
+  });
+  // 다른 기기에서 바꾼 내용 반영: 탭으로 돌아오면 다시 불러오기
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ckSyncCode) ckSyncPull(); });
 
   if(ckProps.length){ ckRenderAllCards(); ckRenderComp(); }
 }
