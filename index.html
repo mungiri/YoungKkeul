@@ -181,17 +181,36 @@
   .ck-iicon{font-size:17px;flex-shrink:0;width:22px;text-align:center;margin-top:1px;}
   .ck-ilabel{font-size:14px;font-weight:600;color:var(--ink);letter-spacing:-.1px;}
   .ck-idesc{font-size:11px;color:var(--dim);margin-top:2px;line-height:1.4;}
-  .ck-ibtns{display:flex;gap:4px;flex-shrink:0;}
-  .ck-ibtn{padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
-  .ck-good.on{background:rgba(29,138,78,.12);border-color:var(--green);color:var(--green);font-weight:700;}
-  .ck-ok.on{background:rgba(0,102,204,.08);border-color:var(--gold);color:var(--gold);font-weight:700;}
-  .ck-bad.on{background:rgba(196,54,46,.1);border-color:var(--red);color:var(--red);font-weight:700;}
-  .ck-none.on{background:var(--track);border-color:var(--line);color:var(--dim);font-weight:700;}
+  .ck-ibtns{display:flex;gap:5px;flex-shrink:0;}
+  .ck-ibtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;font-variant-numeric:tabular-nums;transition:background .12s,color .12s,border-color .12s;}
+  .ck-ibtn.on{color:#fff;font-weight:700;}
+  .ck-ibtn.s1.on{background:#c62828;border-color:#c62828;}
+  .ck-ibtn.s2.on{background:#e8820c;border-color:#e8820c;}
+  .ck-ibtn.s3.on{background:#c9a227;border-color:#c9a227;}
+  .ck-ibtn.s4.on{background:#3a9d5d;border-color:#3a9d5d;}
+  .ck-ibtn.s5.on{background:#1d8a4e;border-color:#1d8a4e;}
+  /* 기본정보 입력 그리드 */
+  .ck-info{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px;}
+  .ck-ifield{display:flex;flex-direction:column;gap:3px;}
+  .ck-ifield label{font-size:11px;color:var(--sub);font-weight:600;}
+  .ck-ifield input{border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:14px;color:var(--ink);font-family:inherit;background:var(--bg);outline:none;}
+  .ck-ifield input:focus{border-color:var(--gold);}
+  .ck-memo{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;color:var(--ink);font-family:inherit;background:var(--bg);outline:none;resize:vertical;min-height:54px;margin-top:8px;box-sizing:border-box;}
+  .ck-memo:focus{border-color:var(--gold);}
+  /* 순위표 */
+  .ck-rank{width:100%;border-collapse:collapse;}
+  .ck-rank th{font-size:12px;color:var(--sub);font-weight:600;padding:7px 8px;text-align:center;cursor:pointer;white-space:nowrap;user-select:none;}
+  .ck-rank th.first{text-align:left;}
+  .ck-rank th.act{color:var(--gold);}
+  .ck-rank td{font-size:13px;padding:8px;text-align:center;border-top:1px solid var(--track);font-variant-numeric:tabular-nums;}
+  .ck-rank td.first{text-align:left;font-weight:600;color:var(--ink);}
+  .ck-rank tr.top td{background:rgba(201,162,39,.07);}
   @media(max-width:480px){
-    .ck-ibtns{flex-wrap:wrap;gap:3px;}
-    .ck-ibtn{padding:4px 6px;font-size:11px;}
+    .ck-ibtns{gap:4px;}
+    .ck-ibtn{width:28px;height:28px;font-size:12px;}
     .ck-wbtns{gap:3px;}
     .ck-wbtn{padding:5px 7px;font-size:11px;}
+    .ck-info{grid-template-columns:1fr 1fr;gap:8px;}
     .tabs .tab{font-size:13px;padding:10px 8px;}
   }
 </style>
@@ -373,11 +392,18 @@
 
     <!-- 비교 패널 (매물 2개 이상 시 표시) -->
     <div class="panel" id="ckCompPanel" style="display:none;margin-top:8px;">
-      <div class="res-label" style="margin-bottom:12px;">매물 비교</div>
-      <div id="ckCompTable"></div>
-      <div style="margin-top:18px;text-align:center;">
-        <div class="flabel" style="margin-bottom:8px;text-align:left;">카테고리별 레이더 차트</div>
+      <div class="res-label" style="margin-bottom:4px;">🏆 순위표</div>
+      <div class="hint" style="margin-bottom:10px;">열 제목을 누르면 기준별로 정렬됩니다.</div>
+      <div id="ckRankTable" style="overflow-x:auto;"></div>
+
+      <div style="margin-top:24px;text-align:center;">
+        <div class="flabel" style="margin-bottom:8px;text-align:left;">📊 영역별 레이더 차트</div>
         <canvas id="ckRadar" style="max-width:360px;width:100%;display:block;margin:0 auto;"></canvas>
+      </div>
+
+      <div style="margin-top:24px;">
+        <div class="flabel" style="margin-bottom:8px;">📋 항목별 상세 비교</div>
+        <div id="ckCompTable" style="overflow-x:auto;"></div>
       </div>
     </div>
 
@@ -1008,51 +1034,50 @@ function areaDot(color){
 }
 
 /* ===== 📋 임장 체크리스트 & 스코어링 ===== */
-// area: 'out' = 집에 안 들어가도 동네 돌면서 확인 가능 / 'in' = 집 안에 들어가야 확인 가능
+// area: 'out' = 밖에서(동네 돌며) 확인 가능 / 'in' = 집 안에 들어가야 확인
+// dim  = 레이더 차트 영역 (입지/소음/컨디션/주차/옵션)
 const CHECK_ITEMS = [
-  // 입지·교통 (밖에서 확인)
-  {id:'station', cat:'입지·교통', area:'out', icon:'🚇', label:'역세권',    desc:'가장 가까운 지하철역까지 도보'},
-  {id:'mart',    cat:'입지·교통', area:'out', icon:'🛒', label:'마트/편의', desc:'마트·편의점·시장 접근성'},
-  {id:'school',  cat:'입지·교통', area:'out', icon:'🏫', label:'학군',     desc:'초등학교·학원가 접근성'},
-  {id:'hospital',cat:'입지·교통', area:'out', icon:'🏥', label:'의료',     desc:'병원·약국 접근성'},
-  // 동네 분위기 (밖에서 확인)
-  {id:'vibe',    cat:'동네 분위기', area:'out', icon:'🏘️', label:'동네 분위기', desc:'거리 정돈·유동인구·상권 활기'},
-  {id:'safety',  cat:'동네 분위기', area:'out', icon:'🌙', label:'밤길 치안',  desc:'가로등·인적·골목 안전감'},
-  {id:'noise2',  cat:'동네 분위기', area:'out', icon:'🛣️', label:'소음',     desc:'대로변·상가·고가 소음 여부'},
-  {id:'park2',   cat:'동네 분위기', area:'out', icon:'🌳', label:'공원/녹지', desc:'공원·산책로 등 쾌적함'},
-  // 건물·단지 (밖·공용부에서 확인)
-  {id:'age',     cat:'건물·단지', area:'out', icon:'🏗️', label:'건물 상태', desc:'연식·외관·균열·노후도'},
-  {id:'elev',    cat:'건물·단지', area:'out', icon:'🛗', label:'엘리베이터', desc:'층수 대비 엘리베이터 유무·대기'},
-  {id:'park',    cat:'건물·단지', area:'out', icon:'🚗', label:'주차',     desc:'세대당 주차 대수·주차 편의성'},
-  {id:'security',cat:'건물·단지', area:'out', icon:'🔐', label:'보안',     desc:'CCTV·공동현관·경비 수준'},
-  // 집 내부 (집에 들어가서 확인)
-  {id:'light',   cat:'집 내부', area:'in', icon:'☀️', label:'채광',     desc:'낮에 햇빛이 잘 드는가'},
-  {id:'direct',  cat:'집 내부', area:'in', icon:'🧭', label:'향(방향)',  desc:'남향·남동향 등 일조 방향'},
-  {id:'water',   cat:'집 내부', area:'in', icon:'🚿', label:'수압',     desc:'샤워기·수전 수압이 충분한가'},
-  {id:'sound',   cat:'집 내부', area:'in', icon:'🔇', label:'방음',     desc:'외부·층간 소음이 적은가'},
-  {id:'damp',    cat:'집 내부', area:'in', icon:'💧', label:'결로/곰팡이', desc:'창문 주변·벽에 결로·곰팡이 흔적'},
-  {id:'layout',  cat:'집 내부', area:'in', icon:'📐', label:'구조·수납', desc:'방 배치·동선·수납 공간'},
+  // 입지/환경 (밖에서 확인)
+  {id:'station', cat:'입지/환경', area:'out', dim:'입지', icon:'🚇', label:'지하철역 도보', desc:'가장 가까운 역까지 걸리는 시간'},
+  {id:'mart',    cat:'입지/환경', area:'out', dim:'입지', icon:'🛒', label:'마트/편의점',  desc:'마트·편의점·시장 접근성'},
+  {id:'noise2',  cat:'입지/환경', area:'out', dim:'소음', icon:'🛣️', label:'주변 소음',    desc:'대로변·상가·고가 등 외부 소음'},
+  {id:'slope',   cat:'입지/환경', area:'out', dim:'입지', icon:'⛰️', label:'경사도',      desc:'언덕·계단 등 오르내림 부담'},
+  // 내부 상태 (집에 들어가서 확인)
+  {id:'light',   cat:'내부 상태', area:'in', dim:'컨디션', icon:'☀️', label:'채광',        desc:'낮에 햇빛이 잘 드는가'},
+  {id:'water',   cat:'내부 상태', area:'in', dim:'컨디션', icon:'🚿', label:'수압',        desc:'싱크대·화장실 수압이 충분한가'},
+  {id:'drain',   cat:'내부 상태', area:'in', dim:'컨디션', icon:'🚽', label:'변기 물 빠짐', desc:'변기·배수구 물 빠짐 상태'},
+  {id:'damp',    cat:'내부 상태', area:'in', dim:'컨디션', icon:'💧', label:'곰팡이/결로',  desc:'창틀·벽·천장 곰팡이·결로 흔적'},
+  {id:'sound',   cat:'내부 상태', area:'in', dim:'소음', icon:'🔇', label:'층간/벽간 소음', desc:'윗집·옆집 생활 소음 전달 정도'},
+  {id:'direct',  cat:'내부 상태', area:'in', dim:'컨디션', icon:'🧭', label:'창문 방향',    desc:'남향·남동향 등 일조 방향'},
+  // 옵션/기타
+  {id:'park',    cat:'옵션/기타', area:'out', dim:'주차', icon:'🚗', label:'주차 공간',    desc:'세대당 주차 대수·여유'},
+  {id:'recycle', cat:'옵션/기타', area:'out', dim:'옵션', icon:'♻️', label:'분리수거장',   desc:'분리수거장·쓰레기 처리 청결도'},
+  {id:'option',  cat:'옵션/기타', area:'in', dim:'옵션', icon:'📺', label:'기본 옵션',     desc:'에어컨·냉장고 등 빌트인 상태'},
 ];
 
-const CK_CATS = ['입지·교통','동네 분위기','건물·단지','집 내부'];
-const RATING = {good:100, ok:60, bad:10};
+const CK_CATS = ['입지/환경','내부 상태','옵션/기타'];
+const CK_DIMS = ['입지','소음','컨디션','주차','옵션'];
+const CK_WLEVELS = [{v:0.5,l:'낮음'},{v:1,l:'보통'},{v:2,l:'높음'},{v:3,l:'최우선'}];
 
 let ckWeights = {};
 let ckProps = [];
 let ckInited = false;
-let ckOutOnly = false;   // 동네 임장 모드: 집 내부 항목 숨김
+let ckOutOnly = false;      // 동네 임장 모드: 집 내부 항목 숨김
+let ckSortKey = 'total';    // 순위표 정렬 기준: total | place | value
 
-// 현재 모드에서 보이는 항목/카테고리
+// 현재 모드에서 보이는 항목/카테고리/영역
 function ckVisibleItems(){ return ckOutOnly ? CHECK_ITEMS.filter(i=>i.area==='out') : CHECK_ITEMS; }
-function ckVisibleCats(){ const ids=new Set(ckVisibleItems().map(i=>i.cat)); return CK_CATS.filter(c=>ids.has(c)); }
+function ckVisibleCats(){ const s=new Set(ckVisibleItems().map(i=>i.cat)); return CK_CATS.filter(c=>s.has(c)); }
+function ckVisibleDims(){ const s=new Set(ckVisibleItems().map(i=>i.dim)); return CK_DIMS.filter(d=>s.has(d)); }
 
-// 가중치 기본값
+// 가중치 기본값 (배수)
 function ckDefaultWeights(){
-  return {station:80,mart:50,school:40,hospital:30,
-          vibe:70,safety:60,noise2:60,park2:40,
-          age:50,elev:30,park:50,security:40,
-          light:80,direct:60,water:50,sound:80,damp:60,layout:60};
+  return {station:3,mart:1,noise2:2,slope:1,
+          light:2,water:2,drain:1,damp:2,sound:2,direct:1,
+          park:1,recycle:0.5,option:0.5};
 }
+
+function ckEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function ckSaveState(){
   try{ localStorage.setItem('ykk_ck_weights', JSON.stringify(ckWeights));
@@ -1067,83 +1092,111 @@ function ckLoadState(){
   }catch(e){}
 }
 
+// ── 점수 계산 (평가 1~5점 × 가중치 배수) ──
 function ckScore(prop){
   let num=0, den=0;
-  CHECK_ITEMS.forEach(item=>{
+  ckVisibleItems().forEach(item=>{
     const r=prop.ratings[item.id];
-    const w=ckWeights[item.id]||50;
-    if(r!=null){ num+=RATING[r]*w; den+=100*w; }
+    const w=ckWeights[item.id]!=null?ckWeights[item.id]:1;
+    if(r!=null){ num+=r*w; den+=5*w; }
   });
   return den>0 ? Math.round(num/den*100) : null;
 }
+// 카테고리/영역 평균 점수 (0~100, 미평가 항목 제외)
+function ckGroupScore(prop, key, val){
+  let sum=0, n=0;
+  ckVisibleItems().filter(i=>i[key]===val).forEach(item=>{
+    const r=prop.ratings[item.id];
+    if(r!=null){ sum+=r; n++; }
+  });
+  return n>0 ? Math.round(sum/n/5*100) : null;
+}
+// 가성비 = 종합점수 ÷ 매매가(억). 가격 없으면 null
+function ckValueScore(prop){
+  const s=ckScore(prop); const price=parseFloat(prop.price);
+  if(s==null || !price || price<=0) return null;
+  return Math.round(s / (price/10000) * 10) / 10;   // 점/억
+}
 
 function ckScoreColor(s){
-  if(s===null) return 'var(--sub)';
+  if(s==null) return 'var(--sub)';
   if(s>=80) return 'var(--green)';
   if(s>=60) return 'var(--gold)';
   return 'var(--red)';
 }
+function ckFmtPrice(v){
+  const n=parseFloat(v); if(!n) return '-';
+  if(n>=10000){ const eok=n/10000; return (Number.isInteger(eok)?eok:eok.toFixed(1))+'억'; }
+  return n.toLocaleString()+'만';
+}
 
+// ── 가중치 설정 렌더 ──
 function ckRenderWeights(){
   const el=document.getElementById('ckWeightList');
   if(!el) return;
   el.innerHTML = ckVisibleItems().map(item=>{
-    const w=ckWeights[item.id]||50;
+    const w=ckWeights[item.id]!=null?ckWeights[item.id]:1;
+    const btns=CK_WLEVELS.map(lv=>
+      `<button class="ck-wbtn${w===lv.v?' on':''}" data-id="${item.id}" data-v="${lv.v}">${lv.l}</button>`
+    ).join('');
     return `<div class="ck-wrow">
       <span class="ck-wlabel">${item.icon} ${item.label}</span>
-      <div class="ck-wbtns">
-        <button class="ck-wbtn${w<=25?' on':''}" data-id="${item.id}" data-v="25">낮음</button>
-        <button class="ck-wbtn${w===50?' on':''}" data-id="${item.id}" data-v="50">보통</button>
-        <button class="ck-wbtn${w===75?' on':''}" data-id="${item.id}" data-v="75">높음</button>
-        <button class="ck-wbtn${w>=100?' on':''}" data-id="${item.id}" data-v="100">최우선</button>
-      </div>
+      <div class="ck-wbtns">${btns}</div>
     </div>`;
   }).join('');
   el.querySelectorAll('.ck-wbtn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      ckWeights[btn.dataset.id]=parseInt(btn.dataset.v);
-      ckSaveState();
-      ckRenderWeights();
-      ckRenderAllCards();
-      ckRenderComp();
+      ckWeights[btn.dataset.id]=parseFloat(btn.dataset.v);
+      ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
     });
   });
 }
 
+// ── 매물 카드 렌더 ──
 function ckRenderCard(prop, idx){
   const score=ckScore(prop);
-  const scoreStr=score!==null?score+'점':'미평가';
+  const scoreStr=score!=null?score+'점':'미평가';
   const scoreCol=ckScoreColor(score);
+
   const cats=ckVisibleCats().map(cat=>{
     const items=ckVisibleItems().filter(i=>i.cat===cat);
     const rows=items.map(item=>{
       const r=prop.ratings[item.id]||null;
+      const btns=[1,2,3,4,5].map(n=>
+        `<button class="ck-ibtn s${n}${r===n?' on':''}" data-prop="${idx}" data-id="${item.id}" data-r="${n}">${n}</button>`
+      ).join('');
       return `<div class="ck-irow">
         <div class="ck-ileft">
           <span class="ck-iicon">${item.icon}</span>
           <div><div class="ck-ilabel">${item.label}</div><div class="ck-idesc">${item.desc}</div></div>
         </div>
-        <div class="ck-ibtns">
-          <button class="ck-ibtn ck-good${r==='good'?' on':''}" data-prop="${idx}" data-id="${item.id}" data-r="good">좋음</button>
-          <button class="ck-ibtn ck-ok${r==='ok'?' on':''}"   data-prop="${idx}" data-id="${item.id}" data-r="ok">보통</button>
-          <button class="ck-ibtn ck-bad${r==='bad'?' on':''}" data-prop="${idx}" data-id="${item.id}" data-r="bad">별로</button>
-        </div>
+        <div class="ck-ibtns">${btns}</div>
       </div>`;
     }).join('');
-    return `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;">${cat}</div>${rows}</div>`;
+    return `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.5px;margin-bottom:2px;">${cat}</div>${rows}</div>`;
   }).join('');
 
   return `<div class="panel" style="margin-top:8px;" id="ckCard${idx}">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <input value="${prop.name}" placeholder="매물명 (예: 마포 래미안 102동)"
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <input value="${ckEsc(prop.name)}" placeholder="매물명 (예: 삼평동 래미안 24평)"
         style="border:none;background:transparent;font-size:17px;font-weight:600;color:var(--ink);font-family:inherit;width:100%;outline:none;"
-        data-prop="${idx}" class="ck-name-input"/>
+        data-prop="${idx}" data-f="name" class="ck-finput"/>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <span style="font-size:22px;font-weight:700;color:${scoreCol};">${scoreStr}</span>
         <button class="act-btn" style="color:var(--red);border-color:var(--red);" data-del="${idx}">삭제</button>
       </div>
     </div>
+
+    <div class="ck-info">
+      <div class="ck-ifield"><label>방문 일시</label><input type="date" value="${ckEsc(prop.date)}" data-prop="${idx}" data-f="date" class="ck-finput"/></div>
+      <div class="ck-ifield"><label>매매가 (만원)</label><input type="number" inputmode="numeric" placeholder="예: 95000" value="${ckEsc(prop.price)}" data-prop="${idx}" data-f="price" class="ck-finput"/></div>
+      <div class="ck-ifield"><label>관리비 (만원)</label><input type="number" inputmode="numeric" placeholder="예: 18" value="${ckEsc(prop.fee)}" data-prop="${idx}" data-f="fee" class="ck-finput"/></div>
+      <div class="ck-ifield"><label>전용/공급 평수</label><input type="number" inputmode="numeric" placeholder="예: 24" value="${ckEsc(prop.size)}" data-prop="${idx}" data-f="size" class="ck-finput"/></div>
+    </div>
+
     ${cats}
+
+    <textarea class="ck-memo" placeholder="메모·특이사항 (예: 거실 천장 누수 흔적, 베란다 확장됨, 집주인 거주 중 등)" data-prop="${idx}" data-f="memo" class="ck-finput">${ckEsc(prop.memo)}</textarea>
   </div>`;
 }
 
@@ -1152,70 +1205,102 @@ function ckRenderAllCards(){
   if(!el) return;
   el.innerHTML=ckProps.map((p,i)=>ckRenderCard(p,i)).join('');
 
-  // bind name input
-  el.querySelectorAll('.ck-name-input').forEach(inp=>{
+  // 기본정보·메모 입력 바인딩
+  el.querySelectorAll('input.ck-finput, textarea[data-f]').forEach(inp=>{
     inp.addEventListener('input',()=>{
-      ckProps[parseInt(inp.dataset.prop)].name=inp.value;
+      const p=ckProps[parseInt(inp.dataset.prop)];
+      if(!p) return;
+      p[inp.dataset.f]=inp.value;
       ckSaveState();
+      // 가격/평수/이름 변경은 점수표·순위 갱신 필요 (카드 전체 재렌더는 입력 끊김 유발 → 비교만 갱신)
       ckRenderComp();
+      // 종합점수 배지 즉시 갱신
+      if(['price'].includes(inp.dataset.f)){/* 점수는 평가에만 의존 */}
     });
   });
-  // bind rating btns
+  // 평가 버튼 (1~5)
   el.querySelectorAll('.ck-ibtn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const pi=parseInt(btn.dataset.prop);
-      const id=btn.dataset.id;
-      const r=btn.dataset.r;
-      // toggle off if already selected
-      if(ckProps[pi].ratings[id]===r) delete ckProps[pi].ratings[id];
+      const pi=parseInt(btn.dataset.prop), id=btn.dataset.id, r=parseInt(btn.dataset.r);
+      if(ckProps[pi].ratings[id]===r) delete ckProps[pi].ratings[id]; // 같은 값 누르면 해제
       else ckProps[pi].ratings[id]=r;
-      ckSaveState();
-      ckRenderAllCards();
-      ckRenderComp();
+      ckSaveState(); ckRenderAllCards(); ckRenderComp();
     });
   });
-  // bind delete
+  // 삭제
   el.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       ckProps.splice(parseInt(btn.dataset.del),1);
-      ckSaveState();
-      ckRenderAllCards();
-      ckRenderComp();
+      ckSaveState(); ckRenderAllCards(); ckRenderComp();
     });
   });
 }
 
+// ── 비교(순위표 + 레이더 + 상세표) ──
 function ckRenderComp(){
   const panel=document.getElementById('ckCompPanel');
   if(!panel) return;
-  const valid=ckProps.filter(p=>ckScore(p)!==null);
+  const valid=ckProps.filter(p=>ckScore(p)!=null);
   if(valid.length<2){ panel.style.display='none'; return; }
   panel.style.display='';
+  ckRenderRank(valid);
+  ckDrawRadar(valid);
+  ckRenderDetailTable(valid);
+}
 
-  // table
+function ckRenderRank(valid){
+  const el=document.getElementById('ckRankTable');
+  if(!el) return;
+  const rows=valid.map(p=>({
+    name:p.name||'(이름 없음)',
+    price:ckFmtPrice(p.price),
+    total:ckScore(p),
+    place:ckGroupScore(p,'cat','입지/환경'),
+    value:ckValueScore(p)
+  }));
+  const cmp={total:(a,b)=>(b.total??-1)-(a.total??-1),
+             place:(a,b)=>(b.place??-1)-(a.place??-1),
+             value:(a,b)=>(b.value??-1)-(a.value??-1)};
+  rows.sort(cmp[ckSortKey]);
+  const th=(key,label)=>`<th class="${key==='name'?'first ':''}${ckSortKey===key?'act':''}" data-sort="${key}">${label}${ckSortKey===key?' ▾':''}</th>`;
+  const head=`<tr>${th('name','매물')}${th('total','종합')}${th('place','입지')}${th('value','가성비')}<th>매매가</th></tr>`;
+  const body=rows.map((r,i)=>{
+    const medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':(i+1)+'. ';
+    return `<tr class="${i===0?'top':''}">
+      <td class="first">${medal}${ckEsc(r.name)}</td>
+      <td style="font-weight:700;color:${ckScoreColor(r.total)};">${r.total}점</td>
+      <td style="color:${ckScoreColor(r.place)};">${r.place!=null?r.place+'점':'-'}</td>
+      <td>${r.value!=null?r.value:'<span style="color:var(--dim);">-</span>'}</td>
+      <td>${r.price}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML=`<table class="ck-rank">${head}${body}</table>`;
+  el.querySelectorAll('th[data-sort]').forEach(h=>{
+    h.addEventListener('click',()=>{ ckSortKey=h.dataset.sort; ckRenderComp(); });
+  });
+}
+
+function ckRenderDetailTable(valid){
   const tbl=document.getElementById('ckCompTable');
+  if(!tbl) return;
   const headers='<tr><th style="text-align:left;padding:6px 8px;font-size:13px;color:var(--sub);">항목</th>'+
-    valid.map(p=>`<th style="padding:6px 8px;font-size:13px;color:var(--sub);text-align:center;">${p.name||'매물'}</th>`).join('')+'</tr>';
+    valid.map(p=>`<th style="padding:6px 8px;font-size:13px;color:var(--sub);text-align:center;">${ckEsc(p.name||'매물')}</th>`).join('')+'</tr>';
   const rows=ckVisibleItems().map(item=>{
     const cells=valid.map(p=>{
       const r=p.ratings[item.id];
-      const col=r==='good'?'var(--green)':r==='ok'?'var(--gold)':r==='bad'?'var(--red)':'var(--sub)';
-      const txt=r==='good'?'좋':r==='ok'?'보':r==='bad'?'별':'-';
-      return `<td style="text-align:center;padding:4px 8px;font-size:13px;font-weight:600;color:${col};">${txt}</td>`;
+      const col=r==null?'var(--dim)':r>=4?'var(--green)':r===3?'var(--gold)':'var(--red)';
+      return `<td style="text-align:center;padding:4px 8px;font-size:13px;font-weight:700;color:${col};">${r!=null?r:'-'}</td>`;
     }).join('');
     return `<tr><td style="padding:4px 8px;font-size:13px;">${item.icon} ${item.label}</td>${cells}</tr>`;
   }).join('');
-  const scoreRow='<tr style="border-top:1px solid var(--line);"><td style="padding:8px 8px;font-size:13px;font-weight:700;">종합 점수</td>'+
-    valid.map(p=>{
-      const s=ckScore(p);
-      return `<td style="text-align:center;padding:8px;font-size:16px;font-weight:700;color:${ckScoreColor(s)};">${s}점</td>`;
+  const scoreRow='<tr style="border-top:1px solid var(--line);"><td style="padding:8px;font-size:13px;font-weight:700;">종합 점수</td>'+
+    valid.map(p=>{ const s=ckScore(p);
+      return `<td style="text-align:center;padding:8px;font-size:15px;font-weight:700;color:${ckScoreColor(s)};">${s}점</td>`;
     }).join('')+'</tr>';
-  tbl.innerHTML=`<table style="width:100%;border-collapse:collapse;">${headers}${rows}${scoreRow}</table>`;
-
-  // radar chart
-  ckDrawRadar(valid);
+  tbl.innerHTML=`<table style="width:100%;border-collapse:collapse;min-width:320px;">${headers}${rows}${scoreRow}</table>`;
 }
 
+// ── 레이더 차트 (영역별: 입지/소음/컨디션/주차/옵션) ──
 function ckDrawRadar(props){
   const canvas=document.getElementById('ckRadar');
   if(!canvas) return;
@@ -1224,67 +1309,43 @@ function ckDrawRadar(props){
   const W=Math.min(360, canvas.parentElement.clientWidth||360);
   canvas.style.width=W+'px'; canvas.style.height=W+'px';
   canvas.width=W*dpr; canvas.height=W*dpr;
-  ctx.scale(dpr,dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,W,W);
 
-  // 현재 모드에서 가중치 높은 항목 최대 8개로 레이더 축 구성
-  const labels=ckVisibleItems().slice()
-    .sort((a,b)=>(ckWeights[b.id]||50)-(ckWeights[a.id]||50))
-    .slice(0,8);
-  const N=labels.length;
-  const cx=W/2, cy=W/2, R=W/2-44;
+  const dims=ckVisibleDims();
+  const N=dims.length;
+  if(N<3) return;
+  const cx=W/2, cy=W/2, R=W/2-46;
   const COLORS=['#0066cc','#1d8a4e','#e8820c','#b44de5','#c62828'];
 
-  // grid
-  ctx.strokeStyle='var(--line,#e5e5ea)';
-  ctx.lineWidth=1;
+  ctx.strokeStyle='#e5e5ea'; ctx.lineWidth=1;
   [0.25,0.5,0.75,1].forEach(f=>{
     ctx.beginPath();
-    for(let i=0;i<N;i++){
-      const a=i/N*Math.PI*2-Math.PI/2;
-      const x=cx+Math.cos(a)*R*f, y=cy+Math.sin(a)*R*f;
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-    }
+    for(let i=0;i<N;i++){ const a=i/N*Math.PI*2-Math.PI/2;
+      const x=cx+Math.cos(a)*R*f, y=cy+Math.sin(a)*R*f; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
     ctx.closePath(); ctx.stroke();
   });
-  // axes
-  for(let i=0;i<N;i++){
-    const a=i/N*Math.PI*2-Math.PI/2;
-    ctx.beginPath(); ctx.moveTo(cx,cy);
-    ctx.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R);
-    ctx.stroke();
-  }
-  // labels
-  ctx.fillStyle='var(--ink,#1c1c1e)';
-  ctx.font='600 11px -apple-system,sans-serif';
+  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2-Math.PI/2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R); ctx.stroke(); }
+
+  ctx.fillStyle='#1c1c1e'; ctx.font='600 12px -apple-system,sans-serif';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  labels.forEach((item,i)=>{
-    const a=i/N*Math.PI*2-Math.PI/2;
-    const x=cx+Math.cos(a)*(R+20), y=cy+Math.sin(a)*(R+20);
-    ctx.fillText(item?item.icon+item.label:'',x,y);
-  });
-  // data polygons
+  dims.forEach((d,i)=>{ const a=i/N*Math.PI*2-Math.PI/2;
+    ctx.fillText(d, cx+Math.cos(a)*(R+22), cy+Math.sin(a)*(R+22)); });
+
   props.forEach((prop,pi)=>{
     const col=COLORS[pi%COLORS.length];
     ctx.beginPath();
-    labels.forEach((item,i)=>{
-      const r=item?prop.ratings[item.id]:null;
-      const val=r?RATING[r]/100:0;
+    dims.forEach((d,i)=>{ const sc=ckGroupScore(prop,'dim',d)||0; const val=sc/100;
       const a=i/N*Math.PI*2-Math.PI/2;
-      const x=cx+Math.cos(a)*R*val, y=cy+Math.sin(a)*R*val;
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-    });
-    ctx.closePath();
-    ctx.fillStyle=col+'33'; ctx.fill();
+      const x=cx+Math.cos(a)*R*val, y=cy+Math.sin(a)*R*val; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.closePath(); ctx.fillStyle=col+'2e'; ctx.fill();
     ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
   });
-  // legend
   props.forEach((prop,pi)=>{
-    const col=COLORS[pi%COLORS.length];
-    const y=W-16-pi*18;
+    const col=COLORS[pi%COLORS.length]; const y=W-14-pi*18;
     ctx.fillStyle=col; ctx.fillRect(8,y-6,12,12);
-    ctx.fillStyle='var(--ink,#1c1c1e)';
-    ctx.font='12px -apple-system,sans-serif';
+    ctx.fillStyle='#1c1c1e'; ctx.font='12px -apple-system,sans-serif';
     ctx.textAlign='left'; ctx.textBaseline='middle';
     ctx.fillText(prop.name||`매물${pi+1}`,24,y);
   });
@@ -1295,10 +1356,9 @@ function initCheckView(){
   ckInited=true;
   ckLoadState();
   if(!Object.keys(ckWeights).length) ckWeights=ckDefaultWeights();
-
   ckRenderWeights();
 
-  // weight toggle
+  // 가중치 패널 접기/펼치기
   const toggle=document.getElementById('ckWeightToggle');
   const content=document.getElementById('ckWeightContent');
   if(toggle&&content){
@@ -1321,20 +1381,15 @@ function initCheckView(){
     ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
   }));
 
-  // add property
+  // 매물 추가
   document.getElementById('ckAddProp')?.addEventListener('click',()=>{
-    ckProps.push({name:'', ratings:{}});
-    ckSaveState();
-    ckRenderAllCards();
-    ckRenderComp();
-    // scroll to new card
-    setTimeout(()=>{
-      const cards=document.querySelectorAll('[id^=ckCard]');
-      if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'start'});
-    },100);
+    ckProps.push({name:'',date:'',price:'',fee:'',size:'',ratings:{},memo:''});
+    ckSaveState(); ckRenderAllCards(); ckRenderComp();
+    setTimeout(()=>{ const cards=document.querySelectorAll('[id^=ckCard]');
+      if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'start'}); },100);
   });
 
-  if(ckProps.length) { ckRenderAllCards(); ckRenderComp(); }
+  if(ckProps.length){ ckRenderAllCards(); ckRenderComp(); }
 }
 
 initAreaView();
