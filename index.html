@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>영끌컷 · 자력 독립 마지노선 계산기</title>
+<title>영끌컷 · 서울 부동산 임장 도우미</title>
 <script>
   window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
 </script>
@@ -170,126 +170,37 @@
     .res-price{font-size:40px;}
     #map{height:380px;}
   }
+  /* ===== 임장 체크리스트 ===== */
+  .ck-wrow{display:flex;align-items:center;justify-content:space-between;padding:5px 0;}
+  .ck-wlabel{font-size:13px;color:var(--ink);flex:1;}
+  .ck-wbtns{display:flex;gap:4px;}
+  .ck-wbtn{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
+  .ck-wbtn.on{background:var(--gold);border-color:var(--gold);color:#fff;}
+  .ck-irow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-top:1px solid var(--track);}
+  .ck-ileft{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;}
+  .ck-iicon{font-size:17px;flex-shrink:0;width:22px;text-align:center;margin-top:1px;}
+  .ck-ilabel{font-size:14px;font-weight:600;color:var(--ink);letter-spacing:-.1px;}
+  .ck-idesc{font-size:11px;color:var(--dim);margin-top:2px;line-height:1.4;}
+  .ck-ibtns{display:flex;gap:4px;flex-shrink:0;}
+  .ck-ibtn{padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
+  .ck-good.on{background:rgba(29,138,78,.12);border-color:var(--green);color:var(--green);font-weight:700;}
+  .ck-ok.on{background:rgba(0,102,204,.08);border-color:var(--gold);color:var(--gold);font-weight:700;}
+  .ck-bad.on{background:rgba(196,54,46,.1);border-color:var(--red);color:var(--red);font-weight:700;}
+  .ck-none.on{background:var(--track);border-color:var(--line);color:var(--dim);font-weight:700;}
+  @media(max-width:480px){
+    .ck-ibtns{flex-wrap:wrap;gap:3px;}
+    .ck-ibtn{padding:4px 6px;font-size:11px;}
+    .tabs .tab{font-size:13px;padding:10px 8px;}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="tabs">
-    <button class="tab on" data-view="viewCalc">💰 영끌 계산기</button>
+    <button class="tab on" data-view="viewArea">🏙️ 상권 분석</button>
     <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
-    <button class="tab" data-view="viewArea">🏙️ 상권 분석</button>
+    <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
   </div>
-  <div id="viewCalc">
-  <div>
-    <div class="eyebrow">영끌컷 · 자력 독립 마지노선</div>
-    <p class="lede">보유 현금과 소득을 넣으면 부대비용까지 제하고 매수 가능한 최대 가격을 역산합니다. 보금자리론(6억 이하)과 일반 주담대를 자동 비교합니다.</p>
-  </div>
-
-  <!-- 입력 패널 -->
-  <div class="panel">
-    <div class="grid2">
-      <label class="field"><div class="flabel">보유 현금</div>
-        <div class="frow"><input id="cash" type="number" step="0.1" value="" placeholder="0"><span class="suffix">억원</span></div>
-        <div class="hint">전세보증금 회수분 포함</div></label>
-      <label class="field"><div class="flabel">내 연봉(세전)</div>
-        <div class="frow"><input id="income" type="number" step="100" value="" placeholder="0"><span class="suffix">만원</span></div></label>
-      <label class="field"><div class="flabel">동거인 합산소득</div>
-        <div class="frow"><input id="coIncome" type="number" step="100" value="" placeholder="0"><span class="suffix">만원</span></div>
-        <div class="hint">배우자·남매 합산 시</div></label>
-      <label class="field"><div class="flabel">나이</div>
-        <div class="frow"><input id="age" type="number" step="1" value="" placeholder="0"><span class="suffix">세</span></div>
-        <div class="hint">체증식은 40세 미만만</div></label>
-      <label class="field"><div class="flabel">기존 주담대 상환</div>
-        <div class="frow"><input id="existingMortgage" type="number" step="100" value="" placeholder="0"><span class="suffix">만원/년</span></div></label>
-      <label class="field"><div class="flabel">기타부채 이자</div>
-        <div class="frow"><input id="otherDebt" type="number" step="50" value="" placeholder="0"><span class="suffix">만원/년</span></div>
-        <div class="hint">신용대출 등</div></label>
-    </div>
-    <div class="divider"></div>
-    <div class="grid2" style="gap:20px;">
-      <div class="toggle-group"><div class="flabel">생애최초 여부</div>
-        <div class="toggle-row" id="firstHome">
-          <button class="toggle-btn on" data-val="true">생애최초</button>
-          <button class="toggle-btn" data-val="false">아니오</button>
-        </div></div>
-      <div class="toggle-group"><div class="flabel">상환 방식</div>
-        <div class="toggle-row" id="repayment">
-          <button class="toggle-btn on" data-val="graduated">체증식</button>
-          <button class="toggle-btn" data-val="equal">원리금균등</button>
-        </div></div>
-    </div>
-  </div>
-
-  <!-- 결과 패널 -->
-  <div class="panel">
-    <div class="res-label">매수 가능 마지노선</div>
-    <div class="res-headline">
-      <div class="res-price" id="outPrice">–</div>
-      <div class="res-meta" id="outMeta"></div>
-    </div>
-    <div style="margin-top:18px; margin-bottom:6px;">
-      <div class="gauge-track"><div class="gauge-fill" id="gauge" style="width:0%"></div></div>
-      <div class="gauge-cap"><span>0</span><span>보금자리론 상한 6억</span></div>
-    </div>
-    <div class="grid3" style="margin-top:18px;">
-      <div class="stat"><div class="k">대출액</div><div class="v" id="outLoan" style="color:var(--ink)">–</div></div>
-      <div class="stat"><div class="k">필요 현금</div><div class="v" id="outReqCash" style="color:var(--ink)">–</div></div>
-      <div class="stat"><div class="k" id="outPayLabel">월 납입</div><div class="v" id="outPay" style="color:var(--gold)">–</div></div>
-    </div>
-    <div class="binding-box" id="outBinding"></div>
-    <div class="actions">
-      <button class="act-btn" id="shareBtn">🔗 공유 링크 복사</button>
-      <button class="act-btn" id="imgBtn">🖼️ 이미지 저장</button>
-      <button class="act-btn" id="resetBtn">🗑 입력 초기화</button>
-    </div>
-  </div>
-
-  <!-- 자격 체크 -->
-  <div class="panel">
-    <div class="res-label" style="margin-bottom:14px;">대출 자격 체크</div>
-    <div id="checks"></div>
-  </div>
-
-  <!-- 매물(실거래가) 검색 -->
-  <div class="panel">
-    <div class="res-label" style="margin-bottom:4px;">이 예산으로 살 수 있는 단지</div>
-    <div class="hint" id="budgetLine" style="margin-bottom:14px;">위에서 계산된 마지노선 가격을 예산 상한으로 국토부 실거래가를 조회합니다.</div>
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-      <div class="flabel" style="margin:0;">면적 입력 단위</div>
-      <div class="toggle-row" id="areaUnit" style="width:200px;">
-        <button class="toggle-btn on" data-unit="m2">㎡(전용)</button>
-        <button class="toggle-btn" data-unit="py">평형</button>
-      </div>
-    </div>
-    <div class="grid3" style="gap:12px; margin-bottom:14px;">
-      <label class="field" style="margin:0;"><div class="flabel">자치구</div>
-        <div class="frow"><select id="gu" style="flex:1; background:transparent; border:none; outline:none; color:var(--ink); font-size:16px; font-family:inherit;"></select></div></label>
-      <label class="field" style="margin:0;"><div class="flabel" id="minAreaLabel">전용면적 하한</div>
-        <div class="frow"><input id="minArea" type="number" step="1" value="40" style="font-size:18px;"><span class="suffix" id="minAreaSuffix">㎡</span></div></label>
-      <label class="field" style="margin:0;"><div class="flabel" id="maxAreaLabel">전용면적 상한</div>
-        <div class="frow"><input id="maxArea" type="number" step="1" value="85" style="font-size:18px;"><span class="suffix" id="maxAreaSuffix">㎡</span></div></label>
-      <label class="field" style="margin:0;"><div class="flabel">최소 세대수</div>
-        <div class="frow"><input id="minHouseholds" type="number" step="100" value="0" style="font-size:18px;"><span class="suffix">세대↑</span></div>
-        <div class="hint">0=전체 · 대단지 선호 시</div></label>
-    </div>
-    <div class="hint" id="areaPyeong" style="margin:-4px 0 10px;"></div>
-    <div class="toggle-row" id="pyPresets" style="margin-bottom:14px;">
-      <button class="toggle-btn" data-m2min="36" data-m2max="46" data-pymin="15" data-pymax="18">소형 15~18평형</button>
-      <button class="toggle-btn" data-m2min="55" data-m2max="62" data-pymin="24" data-pymax="26">25평형(59㎡)</button>
-      <button class="toggle-btn" data-m2min="78" data-m2max="88" data-pymin="33" data-pymax="35">34평형(84㎡)</button>
-      <button class="toggle-btn" data-m2min="95" data-m2max="120" data-pymin="39" data-pymax="50">40평형↑</button>
-    </div>
-    <div class="toggle-row" style="margin-bottom:14px;">
-      <button class="toggle-btn" id="stationFilter">🚇 역세권(도보 10분 이내)만</button>
-    </div>
-    <button id="searchBtn" class="toggle-btn on" style="width:100%; padding:13px; font-size:14px; font-weight:600;">이 예산으로 살 수 있는 단지 보기</button>
-    <div id="searchStatus" class="hint" style="margin-top:10px;"></div>
-    <div id="complexMap" style="display:none;"></div>
-    <div id="complexList" style="margin-top:8px;"></div>
-  </div>
-
-  <p class="disclaimer">2026.6 규제 기준 추정치입니다. 보금자리론 DTI 한도·소득인정률, 체증식 증가율은 공고문 기준과 차이가 있을 수 있으며 실제 심사 결과와 다를 수 있습니다. 개인 입력값은 서버로 전송되지 않으며, 다음 방문 시 편의를 위해 이 브라우저에만 저장됩니다. (아래 ‘입력 초기화’로 삭제)</p>
-  </div><!-- /viewCalc -->
 
   <!-- ===== 재개발 지도 뷰 ===== -->
   <div id="viewMap" style="display:none;">
@@ -330,7 +241,7 @@
   </div><!-- /viewMap -->
 
   <!-- ===== 상권 분석 뷰 ===== -->
-  <div id="viewArea" style="display:none;">
+  <div id="viewArea">
     <div>
       <div class="eyebrow">상권 분석 · 동네 분위기</div>
       <p class="lede">주소(또는 장소명)를 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줍니다. 전국 어디든 됩니다.</p>
@@ -426,15 +337,58 @@
     <p class="disclaimer">소상공인시장진흥공단 상가(상권)정보 기준(분기 갱신). 신규·폐업 반영에 시차가 있고 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기 라벨은 표본 기반 자동 추정으로 참고용입니다. ‘서울 상권 심화’는 서울시 우리마을가게 상권분석서비스(행정동) 기준이며 서울에 한해 표시됩니다.</p>
   </div><!-- /viewArea -->
 
+  <!-- ===== 임장 체크리스트 뷰 ===== -->
+  <div id="viewCheck" style="display:none;">
+    <div>
+      <div class="eyebrow">임장 체크리스트 · 매물 스코어링</div>
+      <p class="lede">집을 보러 다닐 때 항목별로 체크하면 두 분만의 가중치로 최종 점수를 자동 계산합니다. 여러 집의 장단점을 한눈에 비교해보세요.</p>
+    </div>
+
+    <!-- 가중치 설정 패널 -->
+    <div class="panel" style="margin-top:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="res-label" style="margin:0;">우리 우선순위 설정</div>
+        <button class="act-btn" id="ckWeightToggle">숨기기</button>
+      </div>
+      <div id="ckWeightContent">
+        <div class="hint" style="margin-bottom:12px;">1=덜 중요 → 5=매우 중요. 변경 즉시 점수에 반영됩니다.</div>
+        <div id="ckWeightList"></div>
+        <div class="actions" style="margin-top:10px;">
+          <button class="act-btn" id="ckPresetLight">☀️ 채광·조용함 중시</button>
+          <button class="act-btn" id="ckPresetStation">🚇 역세권 최우선</button>
+          <button class="act-btn" id="ckPresetBalance">⚖️ 균형 (기본값)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 매물 카드 목록 -->
+    <div id="ckPropCards"></div>
+
+    <!-- 매물 추가 버튼 -->
+    <button class="toggle-btn" id="ckAddProp" style="width:100%;padding:13px;font-size:14px;font-weight:600;margin-top:8px;background:var(--panel);color:var(--gold);border-color:var(--gold);">+ 새 매물 추가</button>
+
+    <!-- 비교 패널 (매물 2개 이상 시 표시) -->
+    <div class="panel" id="ckCompPanel" style="display:none;margin-top:8px;">
+      <div class="res-label" style="margin-bottom:12px;">매물 비교</div>
+      <div id="ckCompTable"></div>
+      <div style="margin-top:18px;text-align:center;">
+        <div class="flabel" style="margin-bottom:8px;text-align:left;">카테고리별 레이더 차트</div>
+        <canvas id="ckRadar" style="max-width:360px;width:100%;display:block;margin:0 auto;"></canvas>
+      </div>
+    </div>
+
+    <p class="disclaimer">입력한 데이터는 이 기기 브라우저에만 저장되며 서버로 전송되지 않습니다.</p>
+  </div><!-- /viewCheck -->
+
 <!-- 업데이트 안내 모달 -->
 <div class="modal-ov" id="whatsnew">
   <div class="modal" role="dialog" aria-modal="true" aria-label="업데이트 안내">
     <h2>이번 업데이트 ✨</h2>
-    <div class="m-sub">주변 상권 분석 탭이 새로 들어왔어요.</div>
-    <div class="feat"><div class="ic">🏙️</div><div><div class="ft">상권 분석 탭 추가</div><div class="fd">주소나 장소명만 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줘요. 전국 어디든.</div></div></div>
-    <div class="feat"><div class="ic">🗺️</div><div><div class="ft">업종별 지도 토글</div><div class="fd">주변 점포를 업종 그룹별 색으로 표시하고, 범례를 눌러 켜고 끄기 · 전체 선택/해제까지.</div></div></div>
-    <div class="feat"><div class="ic">📊</div><div><div class="ft">서울 상권 심화(행정동)</div><div class="fd">서울 주소는 행정동 추정매출·유동인구·개폐업률·주 소비층까지 한 단계 더 깊게.</div></div></div>
-    <div class="feat"><div class="ic">🏷️</div><div><div class="ft">한눈에 읽히게</div><div class="fd">업종 비중 높음/보통/낮음 표시, 시간대 1시간당 평균 환산 등 가독성을 다듬었어요.</div></div></div>
+    <div class="m-sub">임장 체크리스트가 새로 들어왔어요. 집 보러 갈 때 스마트하게!</div>
+    <div class="feat"><div class="ic">📋</div><div><div class="ft">임장 체크리스트 탭 추가</div><div class="fd">수압·채광·방음·결로·역세권 등 항목을 매물마다 체크하면 점수를 자동 계산해요.</div></div></div>
+    <div class="feat"><div class="ic">⚖️</div><div><div class="ft">두 분만의 가중치 설정</div><div class="fd">'우리는 채광과 역세권이 최우선' 같은 우선순위를 직접 정하면 점수 계산에 바로 반영돼요.</div></div></div>
+    <div class="feat"><div class="ic">📊</div><div><div class="ft">매물 비교 & 레이더 차트</div><div class="fd">매물이 2개 이상이면 종합점수 순위표와 카테고리별 레이더 차트로 한눈에 비교돼요.</div></div></div>
+    <div class="feat"><div class="ic">🏙️</div><div><div class="ft">상권 분석이 기본 탭으로</div><div class="fd">가장 많이 쓰이는 상권 분석을 첫 화면으로 바꿨어요.</div></div></div>
     <div style="text-align:center; margin:18px 0 2px; font-size:15px; font-weight:600; color:var(--gold); letter-spacing:.2px;">나연 ♥</div>
     <div class="modal-foot">
       <label><input type="checkbox" id="wnDont"> 다시 보지 않기</label>
@@ -447,475 +401,12 @@
 <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3c507dc4edc22b1abdce54f169e2f6c2&libraries=services&autoload=false"></script>
 
 <script>
-/* ===== 규제 파라미터 (2026.6) ===== */
-const REG={
-  LTV_FIRST:0.7, LTV_GENERAL:0.4, BOGEUM_LIMIT_FIRST:4.2e8, BOGEUM_LIMIT_NORMAL:3.6e8,
-  BOGEUM_PRICE_CEIL:6e8, BOGEUM_INCOME_CEIL:7e7, BOGEUM_RATE:0.042,
-  DTI_BASE:0.6, DSR_BANK:0.4, STRESS_METRO:0.03, GEN_RATE:0.045,
-  GRAD_GROWTH:0.0009, GRAD_MAX_YEARS:40, GRAD_AGE_LIMIT:40, DTI_GRAD_AVG_YEARS:10,
-  ACQ_TAX:0.012, BROKER:0.005, MISC:1e6, CAP_TIER1:6e8, CAP_TIER2:4e8, CAP_TIER3:2e8,
-};
-
-/* ===== 금융 계산 ===== */
-const annuityPrincipal=(a,r,y)=>r<=0?a*y:a*((1-Math.pow(1+r,-y))/r);
-function equalMonthly(loan,rate,years){const r=rate/12,n=years*12;return r<=0?loan/n:(loan*r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);}
-function graduated(loan,rate,years,g){
-  const r=rate/12,n=years*12; let gf=0;
-  for(let k=1;k<=n;k++) gf+=Math.pow(1+g,k-1)*Math.pow(1+r,n-k);
-  const p0=loan*Math.pow(1+r,n)/gf;
-  const first=p0, last=p0*Math.pow(1+g,n-1);
-  let s=0; for(let m=1;m<=REG.DTI_GRAD_AVG_YEARS*12;m++) s+=p0*Math.pow(1+g,m-1);
-  return {first,last,avg10Annual:s/REG.DTI_GRAD_AVG_YEARS};
-}
-const amountCap=p=>p<=15e8?REG.CAP_TIER1:(p<=25e8?REG.CAP_TIER2:REG.CAP_TIER3);
-const requiredCash=(p,l)=>p-l+p*REG.ACQ_TAX+p*REG.BROKER+REG.MISC;
-
-function maxLoanAt(price,u){
-  const income=u.income+u.coIncome;
-  const bogeumOk=price<=REG.BOGEUM_PRICE_CEIL && income<=REG.BOGEUM_INCOME_CEIL;
-  if(bogeumOk){
-    const ltv=price*REG.LTV_FIRST;
-    const cap=u.firstHome?REG.BOGEUM_LIMIT_FIRST:REG.BOGEUM_LIMIT_NORMAL;
-    const useGrad=u.repayment==='graduated'&&u.age<REG.GRAD_AGE_LIMIT;
-    const term=useGrad?REG.GRAD_MAX_YEARS:50;
-    const budget=income*REG.DTI_BASE-u.existingMortgage-u.otherInterest;
-    let dti=0;
-    if(budget>0){let lo=0,hi=20e8;
-      while(hi-lo>1e4){const mid=(lo+hi)/2;
-        const ap=useGrad?graduated(mid,REG.BOGEUM_RATE,term,REG.GRAD_GROWTH).avg10Annual:equalMonthly(mid,REG.BOGEUM_RATE,term)*12;
-        if(ap<=budget)lo=mid;else hi=mid;}
-      dti=lo;}
-    const limits=[{name:'LTV 70%',val:ltv},
-      {name:u.firstHome?'보금자리론 한도(4.2억)':'보금자리론 한도(3.6억)',val:cap},
-      {name:'DTI',val:dti}];
-    const b=limits.reduce((a,c)=>a.val<c.val?a:c);
-    return {loan:Math.floor(b.val),binding:b.name,product:'보금자리론',term,useGrad};
-  } else {
-    const ltvRate=u.firstHome?REG.LTV_FIRST:REG.LTV_GENERAL;
-    const ltv=price*ltvRate, cap=amountCap(price), stress=REG.GEN_RATE+REG.STRESS_METRO;
-    const budget=income*REG.DSR_BANK-u.existingMortgage-u.otherPayment;
-    const dsr=budget>0?annuityPrincipal(budget,stress,30):0;
-    const limits=[{name:`LTV ${Math.round(ltvRate*100)}%`,val:ltv},
-      {name:'금액 캡',val:cap},{name:'스트레스 DSR',val:dsr}];
-    const b=limits.reduce((a,c)=>a.val<c.val?a:c);
-    return {loan:Math.floor(b.val),binding:b.name,product:'일반 주담대',term:30,useGrad:false};
-  }
-}
-
-function maxAffordable(u){
-  let lo=0,hi=30e8;
-  for(let i=0;i<60;i++){const mid=(lo+hi)/2;const{loan}=maxLoanAt(mid,u);
-    if(requiredCash(mid,loan)<=u.cash)lo=mid;else hi=mid;}
-  const price=Math.floor(lo/1e5)*1e5;
-  const info=maxLoanAt(price,u);
-  const reqCash=requiredCash(price,info.loan);
-  let monthly;
-  if(info.useGrad){const g=graduated(info.loan,REG.BOGEUM_RATE,info.term,REG.GRAD_GROWTH);
-    monthly={mode:'grad',first:g.first,last:g.last};}
-  else{const rate=info.product==='보금자리론'?REG.BOGEUM_RATE:REG.GEN_RATE;
-    monthly={mode:'equal',pay:equalMonthly(info.loan,rate,info.term)};}
-  return {price,...info,reqCash,cashLeft:u.cash-reqCash,monthly};
-}
-
-function eligibility(u){
-  const income=u.income+u.coIncome; const checks=[];
-  checks.push(income>REG.BOGEUM_INCOME_CEIL
-    ?{ok:false,label:'보금자리론 소득요건',detail:`합산 ${won(income)} > 7천만 (신혼·자녀 시 완화)`}
-    :{ok:true,label:'보금자리론 소득요건',detail:`합산 ${won(income)} ≤ 7천만 충족`});
-  if(u.repayment==='graduated')
-    checks.push(u.age<REG.GRAD_AGE_LIMIT
-      ?{ok:true,label:'체증식 자격',detail:`만 ${u.age}세 — 40세 미만 충족 (40년 만기)`}
-      :{ok:false,label:'체증식 자격',detail:`만 ${u.age}세 — 40세 미만 아님 → 균등 전환`});
-  checks.push(u.firstHome
-    ?{ok:true,label:'생애최초',detail:'LTV 70%·한도 4.2억·DTI 차감 면제'}
-    :{ok:false,label:'생애최초',detail:'미해당 → LTV 40%·한도 3.6억'});
-  return checks;
-}
-
-function won(n){
-  const neg=n<0; n=Math.abs(Math.round(n));
-  const eok=Math.floor(n/1e8), man=Math.floor((n%1e8)/1e4);
-  let s=''; if(eok)s+=`${eok}억`; if(man)s+=`${eok?' ':''}${man.toLocaleString()}만`;
-  if(!s)s='0'; return (neg?'-':'')+s+'원';
-}
-
-/* ===== 상태 + 렌더 ===== */
-const state={firstHome:true, repayment:'graduated'};
-let lastPrice=0;   // 매물 검색의 예산 상한 = 최신 마지노선 가격(원)
-function readInputs(){
-  const g=id=>parseFloat(document.getElementById(id).value)||0;
-  return {
-    cash:g('cash')*1e8, income:g('income')*1e4, coIncome:g('coIncome')*1e4,
-    age:g('age'), firstHome:state.firstHome, repayment:state.repayment,
-    existingMortgage:g('existingMortgage')*1e4,
-    otherInterest:g('otherDebt')*1e4, otherPayment:g('otherDebt')*1e4,
-  };
-}
-function render(){
-  saveState();   // 입력 바뀔 때마다 이 브라우저에 저장(다음 방문 복원용)
-  // 초기값 없음: 현금·연봉 입력 전이면 계산하지 않고 대시 표시
-  const cashRaw=document.getElementById('cash').value.trim();
-  const incomeRaw=document.getElementById('income').value.trim();
-  if(!cashRaw || !incomeRaw){
-    lastPrice=0;
-    document.getElementById('outPrice').textContent='–';
-    document.getElementById('outMeta').textContent='';
-    document.getElementById('gauge').style.width='0%';
-    document.getElementById('outLoan').textContent='–';
-    document.getElementById('outReqCash').textContent='–';
-    document.getElementById('outPay').textContent='–';
-    document.getElementById('outBinding').innerHTML='보유 현금과 연봉을 입력하면 매수 가능 마지노선을 계산합니다.';
-    document.getElementById('checks').innerHTML='';
-    const bl0=document.getElementById('budgetLine'); if(bl0) bl0.textContent='먼저 보유 현금과 연봉을 입력하세요.';
-    return;
-  }
-  const u=readInputs();
-  const r=maxAffordable(u);
-  lastPrice=r.price;
-  const bl=document.getElementById('budgetLine');
-  if(bl) bl.innerHTML=`예산 상한(마지노선) <b style="color:var(--gold)">${won(r.price)}</b> 이하 단지를 <b>평균 거래가 기준</b>으로 조회합니다.`;
-  document.getElementById('outPrice').textContent=won(r.price);
-  document.getElementById('outMeta').textContent=`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`;
-  document.getElementById('gauge').style.width=Math.min(100,(r.price/6e8)*100)+'%';
-  document.getElementById('outLoan').textContent=won(r.loan);
-  document.getElementById('outReqCash').textContent=won(r.reqCash);
-  document.getElementById('outPayLabel').textContent=r.monthly.mode==='grad'?'월납입(1회차)':'월 납입';
-  document.getElementById('outPay').textContent=r.monthly.mode==='grad'?won(r.monthly.first):won(r.monthly.pay);
-  let bind=`한도를 결정한 제약: <b>${r.binding}</b>`;
-  if(r.monthly.mode==='grad') bind+=` · 체증식이라 만기엔 월 ${won(r.monthly.last)}까지 증가`;
-  document.getElementById('outBinding').innerHTML=bind;
-
-  const cw=document.getElementById('checks'); cw.innerHTML='';
-  eligibility(u).forEach(c=>{
-    const row=document.createElement('div'); row.className='check-row';
-    row.innerHTML=`<span class="check-mark ${c.ok?'ok':'no'}">${c.ok?'✓':'!'}</span>
-      <div><div class="check-title">${c.label}</div><div class="check-detail">${c.detail}</div></div>`;
-    cw.appendChild(row);
-  });
-}
-
-/* 이벤트 바인딩 */
-['cash','income','coIncome','age','existingMortgage','otherDebt'].forEach(id=>
-  document.getElementById(id).addEventListener('input',render));
-['firstHome','repayment'].forEach(group=>{
-  document.getElementById(group).querySelectorAll('.toggle-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.getElementById(group).querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('on'));
-      btn.classList.add('on');
-      let v=btn.dataset.val; if(v==='true')v=true; else if(v==='false')v=false;
-      state[group]=v; render();
-    });
-  });
-});
 
 /* ===== 매물(실거래가) 검색 ===== */
-const SEOUL_GU=['종로구','중구','용산구','성동구','광진구','동대문구','중랑구','성북구','강북구','도봉구','노원구','은평구','서대문구','마포구','양천구','강서구','구로구','금천구','영등포구','동작구','관악구','서초구','강남구','송파구','강동구'];
-(function initGu(){
-  const sel=document.getElementById('gu');
-  const ph=document.createElement('option'); ph.value=''; ph.textContent='자치구 선택'; sel.appendChild(ph);
-  SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
-  sel.value='';   // 초기값 없음 — 직접 선택해야 검색
-})();
-/* ===== 평형 ↔ 전용면적 정밀 매핑 =====
- * 주의: MOLIT 데이터는 '전용면적'. 한국에서 통칭하는 'N평형'은 '공급면적' 기준
- * 분양평형이라 전용면적÷3.3058(전용평수)과 다르다. (84㎡전용 = 전용 25.4평이지만 통칭 34평형)
- * 정밀화 방법: 표준 분양타입에 가까우면(±3㎡) 통칭 평형을 쓰고,
- *            비표준 크기는 공급면적 추정(전용률 0.74)으로 환산.
- * 1평=3.305785㎡. 표준타입 [전용면적㎡, 통칭평형]. */
-const PYEONG_TYPES=[[33,14],[36,15],[39,16],[42,17],[46,18],[49,20],[51,21],[52,22],
-  [59,25],[69,28],[72,29],[74,30],[78,32],[84,34],[91,37],[99,40],[102,41],
-  [109,43],[114,45],[116,46],[124,49],[134,53],[145,57],[164,64],[184,72]];
-const PYEONG_PER_M2=3.305785, EFFICIENCY=0.74;
-const exPyeong=ex=>ex/PYEONG_PER_M2;                 // 전용 평수(실측)
-function typePyeong(ex){                              // 전용㎡ → 통칭 분양평형(숫자)
-  let best=null,bd=Infinity;
-  for(const[a,p]of PYEONG_TYPES){const d=Math.abs(a-ex);if(d<bd){bd=d;best=p;}}
-  return bd<=3.0?best:Math.round(ex/EFFICIENCY/PYEONG_PER_M2);
-}
-const pyLabel=ex=>`${typePyeong(ex)}평형`;            // 단일값 라벨
-function pyRange(a,b){const p=typePyeong(a),q=typePyeong(b);return p===q?`${p}평형`:`${p}~${q}평형`;}
-// 통칭 평형 → 전용면적(㎡): 표준타입 테이블 역보간(범위 밖은 전용률 환산)
-function pyeongToArea(py){
-  const t=PYEONG_TYPES;
-  if(py<=t[0][1])return t[0][0];
-  if(py>=t[t.length-1][1])return t[t.length-1][0];
-  for(let i=0;i<t.length-1;i++){const[a0,p0]=t[i],[a1,p1]=t[i+1];
-    if(py>=p0&&py<=p1)return a0+(a1-a0)*((py-p0)/((p1-p0)||1));}
-  return py*PYEONG_PER_M2*EFFICIENCY;
-}
-
-async function searchComplexes(){
-  const status=document.getElementById('searchStatus');
-  const list=document.getElementById('complexList');
-  list.innerHTML='';
-  document.getElementById('complexMap').style.display='none';   // 새 검색 시 지도 초기화
-  if(lastPrice<=0){status.textContent='먼저 위에서 마지노선 가격이 계산되어야 합니다.';return;}
-  const gu=document.getElementById('gu').value;
-  if(!gu){status.textContent='자치구를 선택해주세요.';return;}
-  const inMin=parseFloat(document.getElementById('minArea').value)||0;
-  const inMax=parseFloat(document.getElementById('maxArea').value)||0;
-  // 평형 입력 시 전용면적(㎡)으로 변환(경계 포함 위해 ±2㎡ 여유). ㎡ 입력은 그대로.
-  const minArea=areaUnit==='py'?Math.max(0,pyeongToArea(inMin)-2):inMin;
-  const maxArea=areaUnit==='py'?(inMax?pyeongToArea(inMax)+2:9999):(inMax||9999);
-  const minHouseholds=parseInt(document.getElementById('minHouseholds').value)||0;
-  status.textContent=`${gu} 실거래가 조회 중…`;
-  const qs=new URLSearchParams({gu,maxPrice:String(lastPrice),minArea:String(minArea),maxArea:String(maxArea),minHouseholds:String(minHouseholds),months:'6'});
-  try{
-    const ac=new AbortController();
-    const to=setTimeout(()=>ac.abort(),28000);
-    let res;
-    try{ res=await fetch(`/api/transactions?${qs.toString()}`,{signal:ac.signal}); }
-    finally{ clearTimeout(to); }
-    const data=await res.json();
-    if(!res.ok){status.textContent='조회 실패: '+(data.error||res.status)+(data.hint?' — '+data.hint:'');return;}
-    if(!data.complexes.length){status.textContent=`최근 ${data.months.length}개월간 평균가 ${won(lastPrice)} 이하 ${gu} 실거래 단지가 없습니다. (예산을 높이거나 면적 범위를 넓혀보세요)`;return;}
-    // 역세권(도보 10분 이내) 판정 + 필터
-    const near=w=>!!w&&(w.startsWith('5분')||w.startsWith('5~10분'));
-    let comps=data.complexes;
-    if(stationOnly) comps=comps.filter(c=>near(c.subwayWalk));
-    if(!comps.length){status.textContent=`${gu} · 평균가 ${won(lastPrice)} 이하 중 역세권(도보 10분) 단지가 없습니다. 필터를 꺼보세요.`;return;}
-    let head=`${gu} · 최근 ${data.months.length}개월 · 평균 거래가 ${won(lastPrice)} 이하 단지 ${comps.length}곳 (실거래 ${data.totalDeals}건 기준)`;
-    if(stationOnly) head+=' · 🚇 역세권만';
-    if(data.householdsAvailable===false) head+=' · ⚠ 세대수 미연동';
-    status.textContent=head;
-    if(data.householdsNote){const n=document.createElement('div');n.className='hint';n.style.cssText='color:var(--red);margin:6px 0 2px;line-height:1.5;';n.textContent='ⓘ '+data.householdsNote;list.appendChild(n);}
-    if(data.householdsAvailable!==false){const small=comps.filter(c=>c.households==null).length;if(small){const lg=document.createElement('div');lg.className='hint';lg.style.cssText='color:var(--dim);margin:4px 0 2px;line-height:1.5;';lg.innerHTML=`ⓘ "<span style="color:var(--sub)">소규모 추정</span>" = K-apt 의무관리대상(대체로 150세대↑)에 없는 단지 (나홀로·도시형생활주택 등). 이번 결과 ${small}곳.`;list.appendChild(lg);}}
-    comps.forEach(c=>{
-      const row=document.createElement('div'); row.className='check-row';
-      const aMin=Math.min(...c.affordableAreas), aMax=Math.max(...c.affordableAreas);
-      const areas=c.affordableAreas.length?`${aMin.toFixed(0)}~${aMax.toFixed(0)}㎡ (${pyRange(aMin,aMax)})`:'-';
-      const hh=(c.households!=null)?`${c.households.toLocaleString()}세대`:'<span style="color:var(--dim)">소규모 추정</span>';
-      // 가격 추세 배지 (㎡당 전·후반 변화율). 매수자 관점: 하락=진입유리(초록), 상승=주의(레드)
-      const tr=(c.trend!=null)?` · <span title="최근 6개월 ㎡당 평균가 전·후반 변화(매수자 관점: 하락=초록)" style="color:${c.trend>0?'var(--red)':(c.trend<0?'var(--green)':'var(--sub)')}">${c.trend>0?'▲':(c.trend<0?'▼':'–')}${Math.abs(c.trend)}%</span>`:'';
-      // 역세권 배지 (지하철 호선·역·도보시간). 도보 10분 이내면 강조.
-      const sub=c.subwayStation?`<div class="check-detail" style="margin-top:3px;">🚇 <span style="color:${near(c.subwayWalk)?'var(--gold)':'var(--dim)'};font-weight:${near(c.subwayWalk)?'600':'400'};">${c.subwayLine?c.subwayLine+' ':''}${c.subwayStation}역${c.subwayWalk?' · '+c.subwayWalk:''}${near(c.subwayWalk)?' · 역세권':''}</span></div>`:'';
-      // 주소 + 위치/매물 링크 (도로명주소 우선, 없으면 구·동·지번)
-      const addr=c.roadAddr||`${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`;
-      const mapQ=encodeURIComponent(c.roadAddr||`${gu} ${c.dong} ${c.apt}`);
-      const landQ=encodeURIComponent(`${c.dong} ${c.apt}`);
-      const lk=(href,txt)=>`<a href="${href}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;white-space:nowrap;">${txt} ↗</a>`;
-      const links=[
-        lk(`https://map.naver.com/p/search/${mapQ}`,'네이버 지도'),
-        lk(`https://m.land.naver.com/search/result/${landQ}`,'네이버 부동산'),
-      ].join(' · ');
-      row.innerHTML=`<span class="check-mark ok">✓</span>
-        <div style="flex:1;">
-          <div class="check-title">${c.apt} <span style="color:var(--dim);font-weight:400;">· ${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''} · ${hh}</span></div>
-          <div class="check-detail">평균 <b style="color:var(--gold)">${won(c.avgPrice)}</b> · 최저 ${won(c.minPrice)} · 최고 ${won(c.maxPrice)} · 거래 ${c.dealCount}건${tr}</div>
-          <div class="check-detail" style="color:var(--dim)">예산내 면적 ${areas} · 최근거래 ${c.recentDate} ${won(c.recentPrice)}</div>
-          ${sub}
-          <div class="check-detail" style="margin-top:4px;">📍 <span style="color:var(--dim)">${addr}</span> · ${links}</div>
-        </div>`;
-      list.appendChild(row);
-    });
-    showComplexMap(comps, gu);   // 결과 단지들을 카카오맵에 표시
-  }catch(e){status.textContent=(e&&e.name==='AbortError')?'조회가 너무 오래 걸려 중단했어요. 잠시 후 다시 시도해주세요.':'네트워크 오류: '+(e&&e.message||e);}
-}
-
-/* ===== 매물 결과 카카오맵 표시 ===== */
-function showComplexMap(comps, gu){
-  const el=document.getElementById('complexMap');
-  withKakao((ok)=>{
-    if(!ok || !geocoder){ el.style.display='none'; return; }   // 카카오 미로딩이면 목록만
-    el.style.display='block';
-    if(!complexMap){
-      complexMap=new kakao.maps.Map(el,{center:new kakao.maps.LatLng(37.55,126.98),level:6});
-      complexInfo=new kakao.maps.InfoWindow({removable:true});
-    } else { complexMap.relayout(); }
-    plotComplexes(comps, gu);
-  });
-}
-
-async function plotComplexes(comps, gu){
-  complexMarkers.forEach(m=>m.setMap(null)); complexMarkers=[];
-  if(complexInfo) complexInfo.close();
-  // 주소 지오코딩(도로명 우선 → 지번 → 동). geocodeOne은 재개발 지도와 공유.
-  for(const c of comps){
-    if(c._lat&&c._lng) continue;
-    let g=await geocodeOne(c.roadAddr || `서울 ${gu} ${c.dong}${c.jibun?' '+c.jibun:''}`);
-    if(!g && c.addr) g=await geocodeOne(c.addr);
-    if(!g) g=await geocodeOne(`서울 ${gu} ${c.dong}`);
-    if(g){ c._lat=g.lat; c._lng=g.lng; }
-  }
-  const bounds=new kakao.maps.LatLngBounds(); let n=0;
-  comps.forEach(c=>{
-    if(!c._lat||!c._lng) return;
-    const pos=new kakao.maps.LatLng(c._lat,c._lng);
-    const mk=new kakao.maps.Marker({position:pos,map:complexMap});
-    mk._c=c;
-    kakao.maps.event.addListener(mk,'click',()=>openComplexInfo(mk,c,gu));
-    complexMarkers.push(mk); bounds.extend(pos); n++;
-  });
-  if(n) complexMap.setBounds(bounds);
-}
-
-function openComplexInfo(mk,c,gu){
-  const landUrl=`https://m.land.naver.com/search/result/${encodeURIComponent(`${c.dong} ${c.apt}`)}`;
-  const tr=(c.trend!=null)?` <span style="color:${c.trend>0?'#c4362e':(c.trend<0?'#1d8a4e':'#86868b')}">${c.trend>0?'▲':(c.trend<0?'▼':'')}${Math.abs(c.trend)}%</span>`:'';
-  const sub=c.subwayStation?`<br/>🚇 ${c.subwayLine?c.subwayLine+' ':''}${c.subwayStation}역${c.subwayWalk?' '+c.subwayWalk:''}`:'';
-  complexInfo.setContent(`<div class="iw"><div class="n">${c.apt}</div>
-    <div class="m">평균 <b style="color:#0066cc">${won(c.avgPrice)}</b>${tr}<br/>${c.dong}${c.buildYear?' · '+c.buildYear+'년식':''}${c.households!=null?' · '+c.households.toLocaleString()+'세대':''}${sub}</div>
-    <div style="margin-top:6px"><a href="${landUrl}" target="_blank" rel="noopener">🏠 네이버 부동산 ↗</a></div></div>`);
-  complexInfo.open(complexMap, mk);
-}
-let stationOnly=false;
-document.getElementById('stationFilter').addEventListener('click',function(){
-  stationOnly=!stationOnly; this.classList.toggle('on',stationOnly); saveState();
-});
-document.getElementById('searchBtn').addEventListener('click',searchComplexes);
-
-/* 면적 입력 단위(㎡ ↔ 평형) + 라이브 환산 + 프리셋 */
-let areaUnit='m2';
-function updateAreaPyeong(){
-  const mn=parseFloat(document.getElementById('minArea').value)||0;
-  const mx=parseFloat(document.getElementById('maxArea').value)||0;
-  const el=document.getElementById('areaPyeong');
-  if(!mn&&!mx){el.textContent='';return;}
-  if(areaUnit==='py'){
-    const a0=Math.max(0,pyeongToArea(mn)-2), a1=mx?pyeongToArea(mx)+2:0;
-    el.innerHTML=`통칭 <b style="color:var(--gold)">${mn||0}~${mx||0}평형</b> ≈ 전용 약 ${a0.toFixed(0)}~${a1.toFixed(0)}㎡ 로 조회`;
-  } else {
-    el.innerHTML=`전용 ${mn||0}~${mx||0}㎡ ≈ 통칭 <b style="color:var(--gold)">${pyRange(mn,mx)}</b> · 전용평수 ${exPyeong(mn).toFixed(0)}~${exPyeong(mx).toFixed(0)}평`;
-  }
-}
-['minArea','maxArea'].forEach(id=>document.getElementById(id).addEventListener('input',updateAreaPyeong));
-
-// 단위 토글: 기존 입력값을 상대 단위로 환산해 연속성 유지 + 라벨/접미사 변경
-function setAreaUnit(unit){
-  if(unit===areaUnit) return;
-  const minEl=document.getElementById('minArea'), maxEl=document.getElementById('maxArea');
-  const mn=parseFloat(minEl.value)||0, mx=parseFloat(maxEl.value)||0;
-  if(unit==='py'){              // ㎡ → 평형
-    if(mn) minEl.value=typePyeong(mn);
-    if(mx) maxEl.value=typePyeong(mx);
-  } else {                      // 평형 → ㎡
-    if(mn) minEl.value=Math.round(pyeongToArea(mn));
-    if(mx) maxEl.value=Math.round(pyeongToArea(mx));
-  }
-  areaUnit=unit;
-  const py=unit==='py';
-  document.getElementById('minAreaLabel').textContent=py?'평형 하한':'전용면적 하���';
-  document.getElementById('maxAreaLabel').textContent=py?'평형 상한':'전용면적 상한';
-  document.getElementById('minAreaSuffix').textContent=py?'평형':'㎡';
-  document.getElementById('maxAreaSuffix').textContent=py?'평형':'㎡';
-  document.querySelectorAll('#areaUnit .toggle-btn').forEach(b=>b.classList.toggle('on',b.dataset.unit===unit));
-  updateAreaPyeong();
-}
-document.querySelectorAll('#areaUnit .toggle-btn').forEach(b=>b.addEventListener('click',()=>setAreaUnit(b.dataset.unit)));
-
-document.querySelectorAll('#pyPresets .toggle-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    const py=areaUnit==='py';
-    document.getElementById('minArea').value=py?btn.dataset.pymin:btn.dataset.m2min;
-    document.getElementById('maxArea').value=py?btn.dataset.pymax:btn.dataset.m2max;
-    document.querySelectorAll('#pyPresets .toggle-btn').forEach(b=>b.classList.remove('on'));
-    btn.classList.add('on');
-    updateAreaPyeong();
-  });
-});
-updateAreaPyeong();
-
-/* ===== 결과 공유 (URL 해시) + 이미지 저장 (canvas) ===== */
-function buildShareURL(){
-  const g=id=>document.getElementById(id).value;
-  const p=new URLSearchParams({cash:g('cash'),income:g('income'),coIncome:g('coIncome'),
-    age:g('age'),em:g('existingMortgage'),od:g('otherDebt'),
-    fh:state.firstHome?'1':'0',rp:state.repayment});
-  return location.origin+location.pathname+'#'+p.toString();
-}
-function syncToggle(group,val){
-  document.getElementById(group).querySelectorAll('.toggle-btn')
-    .forEach(b=>b.classList.toggle('on',b.dataset.val===val));
-}
-/* ===== 입력값 로컬 저장(localStorage) — 다음 방문 때 복원. 서버 전송 없음 ===== */
-const INPUT_KEY='ykk_inputs_v1';
-function saveState(){
-  try{
-    const g=id=>document.getElementById(id).value;
-    localStorage.setItem(INPUT_KEY, JSON.stringify({
-      cash:g('cash'),income:g('income'),coIncome:g('coIncome'),age:g('age'),
-      existingMortgage:g('existingMortgage'),otherDebt:g('otherDebt'),
-      fh:state.firstHome, rp:state.repayment,
-      gu:g('gu'), minHouseholds:g('minHouseholds'), station:stationOnly
-    }));
-  }catch(e){}
-}
-function restoreState(){
-  try{
-    const raw=localStorage.getItem(INPUT_KEY); if(!raw) return;
-    const s=JSON.parse(raw);
-    const set=(id,v)=>{ if(v!=null&&v!=='') document.getElementById(id).value=v; };
-    set('cash',s.cash);set('income',s.income);set('coIncome',s.coIncome);set('age',s.age);
-    set('existingMortgage',s.existingMortgage);set('otherDebt',s.otherDebt);set('minHouseholds',s.minHouseholds);
-    if(s.gu) document.getElementById('gu').value=s.gu;
-    if(s.fh!=null){ state.firstHome=s.fh; syncToggle('firstHome',String(s.fh)); }
-    if(s.rp){ state.repayment=s.rp; syncToggle('repayment',s.rp); }
-    if(s.station){ stationOnly=true; document.getElementById('stationFilter').classList.add('on'); }
-  }catch(e){}
-}
-// gu·세대수는 render를 거치지 않으므로 별도 저장 바인딩
-document.getElementById('gu').addEventListener('change',saveState);
-document.getElementById('minHouseholds').addEventListener('input',saveState);
-restoreState();   // 저장된 입력 복원(공유링크 해시가 있으면 아래 applyHash가 덮어씀)
-
-(function applyHash(){
-  if(!location.hash) return;
-  const p=new URLSearchParams(location.hash.slice(1));
-  const set=(id,k)=>{if(p.has(k))document.getElementById(id).value=p.get(k);};
-  set('cash','cash');set('income','income');set('coIncome','coIncome');
-  set('age','age');set('existingMortgage','em');set('otherDebt','od');
-  if(p.has('fh')){state.firstHome=p.get('fh')==='1'; syncToggle('firstHome',String(state.firstHome));}
-  if(p.has('rp')){state.repayment=p.get('rp'); syncToggle('repayment',state.repayment);}
-})();
-document.getElementById('shareBtn').addEventListener('click',async function(){
-  const url=buildShareURL();
-  try{ await navigator.clipboard.writeText(url); }
-  catch(e){ /* 클립보드 불가시 주소창에라도 반영 */ }
-  history.replaceState(null,'',url);
-  const b=this, t=b.textContent; b.textContent='✓ 복사됨'; setTimeout(()=>b.textContent=t,1600);
-});
-document.getElementById('resetBtn').addEventListener('click',function(){
-  try{ localStorage.removeItem(INPUT_KEY); }catch(e){}
-  ['cash','income','coIncome','age','existingMortgage','otherDebt'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('gu').value=''; document.getElementById('minHouseholds').value='0';
-  stationOnly=false; document.getElementById('stationFilter').classList.remove('on');
-  render();
-  const b=this,t=b.textContent; b.textContent='✓ 초기화됨'; setTimeout(()=>b.textContent=t,1400);
-});
-document.getElementById('imgBtn').addEventListener('click',function(){
-  const r=maxAffordable(readInputs());
-  const W=1200,H=630, c=document.createElement('canvas'); c.width=W; c.height=H;
-  const x=c.getContext('2d');
-  const F=(w,s)=>`${w} ${s}px -apple-system, 'Inter', system-ui, sans-serif`;
-  x.fillStyle='#f5f5f7'; x.fillRect(0,0,W,H);
-  x.fillStyle='#ffffff';
-  if(x.roundRect){x.beginPath();x.roundRect(48,48,W-96,H-96,28);x.fill();}
-  else x.fillRect(48,48,W-96,H-96);
-  const L=104;
-  x.fillStyle='#0066cc'; x.font=F(600,24); x.fillText('영끌컷 · 자력 독립 마지노선',L,148);
-  x.fillStyle='#6e6e73'; x.font=F(400,28); x.fillText('내 자산으로 풀 대출 시 매수 가능 상한',L,196);
-  x.fillStyle='#1d1d1f'; x.font=F(600,104); x.fillText(won(r.price),L,310);
-  x.fillStyle='#6e6e73'; x.font=F(400,24);
-  x.fillText(`${r.product} · ${r.useGrad?'체증식 '+r.term+'년':r.term+'년'}`,L,356);
-  const pay=r.monthly.mode==='grad'?r.monthly.first:r.monthly.pay;
-  const stats=[['대출액',won(r.loan)],['필요 현금',won(r.reqCash)],
-    [r.monthly.mode==='grad'?'월납입(1회차)':'월 납입',won(pay)]];
-  stats.forEach((s,i)=>{const sx=L+i*330;
-    x.fillStyle='#86868b'; x.font=F(400,22); x.fillText(s[0],sx,452);
-    x.fillStyle='#1d1d1f'; x.font=F(600,34); x.fillText(s[1],sx,496);});
-  x.fillStyle='#86868b'; x.font=F(400,22);
-  x.fillText('young-kkeul.vercel.app · 2026.6 규제 기준 추정',L,H-86);
-  c.toBlob(function(blob){
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob); a.download='영끌컷_마지노선.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  },'image/png');
-});
 
 /* ===== 업데이트 안내 모달 (다시 보지 않기 = localStorage) ===== */
 (function whatsNew(){
-  const KEY='ykk_whatsnew_v3';
+  const KEY='ykk_whatsnew_v4';
   const ov=document.getElementById('whatsnew');
   try{ if(localStorage.getItem(KEY)) return; }catch(e){}
   ov.classList.add('show');
@@ -933,7 +424,6 @@ const STAGE_COLOR={planned:'#0066cc',ongoing:'#1d8a4e',late:'#e8820c',done:'#868
 let mapObj=null, geocoder=null, mapMarkers=[], mapInfo=null,
     mapZones=[], mapStageFilter='all', mapInited=false;
 // 매물(실거래가) 결과 지도
-let complexMap=null, complexMarkers=[], complexInfo=null;
 
 /* 카카오 SDK 공유 로더 — 재개발 지도/매물 지도 양쪽에서 1회만 로드, geocoder 공유 */
 let kakaoReady=false, kakaoLoading=false; const kakaoCbs=[];
@@ -955,12 +445,15 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
   t.classList.add('on');
   const view=t.dataset.view;
-  document.getElementById('viewCalc').style.display = view==='viewCalc'?'':'none';
-  document.getElementById('viewMap').style.display  = view==='viewMap' ?'':'none';
-  document.getElementById('viewArea').style.display = view==='viewArea'?'':'none';
-  if(view==='viewMap') initMapView();
-  if(view==='viewArea') initAreaView();
+  document.getElementById('viewMap').style.display   = view==='viewMap'   ?'':'none';
+  document.getElementById('viewArea').style.display  = view==='viewArea'  ?'':'none';
+  document.getElementById('viewCheck').style.display = view==='viewCheck' ?'':'none';
+  if(view==='viewMap')   initMapView();
+  if(view==='viewArea')  initAreaView();
+  if(view==='viewCheck') initCheckView();
 }));
+
+const SEOUL_GU=['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'];
 
 /* 자치구 셀렉트(지도용) */
 (function initMapGu(){
@@ -1510,7 +1003,338 @@ function areaDot(color){
   return new kakao.maps.MarkerImage('data:image/svg+xml;base64,'+btoa(svg),new kakao.maps.Size(14,14),{offset:new kakao.maps.Point(7,7)});
 }
 
-render();
+/* ===== 📋 임장 체크리스트 & 스코어링 ===== */
+const CHECK_ITEMS = [
+  // 내부 상태
+  {id:'water',   cat:'내부 상태', icon:'🚿', label:'수압',     desc:'샤워기·수전 수압이 충분한가'},
+  {id:'light',   cat:'내부 상태', icon:'☀️', label:'채광',     desc:'낮에 햇빛이 잘 드는가'},
+  {id:'sound',   cat:'내부 상태', icon:'🔇', label:'방음',     desc:'외부·층간 소음이 적은가'},
+  {id:'damp',    cat:'내부 상태', icon:'💧', label:'결로/곰팡이', desc:'창문 주변·벽에 결로·곰팡이 흔적'},
+  {id:'ventil',  cat:'내부 상태', icon:'🌬️', label:'환기',     desc:'환기가 잘 되고 냄새가 없는가'},
+  // 구조·설계
+  {id:'direct',  cat:'구조·설계', icon:'🧭', label:'향(방향)',  desc:'남향·남동향 등 일조 방향'},
+  {id:'layout',  cat:'구조·설계', icon:'📐', label:'구조·동선', desc:'방·주방·화장실 배치가 편리한가'},
+  {id:'storage', cat:'구조·설계', icon:'📦', label:'수납',     desc:'붙박이장·팬트리 등 수납 공간'},
+  {id:'elev',    cat:'구조·설계', icon:'🛗', label:'엘리베이터', desc:'층수 대비 엘리베이터 개수·대기'},
+  {id:'park',    cat:'구조·설계', icon:'🚗', label:'주차',     desc:'세대당 주차 대수·주차 편의성'},
+  // 건물·단지
+  {id:'mgmt',    cat:'건물·단지', icon:'🏢', label:'관리비',   desc:'월 관리비 수준이 적정한가'},
+  {id:'age',     cat:'건물·단지', icon:'📅', label:'건물 연식', desc:'준공 연도·리모델링 여부'},
+  {id:'lobby',   cat:'건물·단지', icon:'✨', label:'공용부 청결', desc:'복도·로비·계단 청결 상태'},
+  {id:'security',cat:'건물·단지', icon:'🔐', label:'보안',     desc:'CCTV·도어락·경비 수준'},
+  // 입지
+  {id:'station', cat:'입지', icon:'🚇', label:'역세권',    desc:'가장 가까운 지하철역까지 도보'},
+  {id:'mart',    cat:'입지', icon:'🛒', label:'마트/편의', desc:'마트·편의점·시장 접근성'},
+  {id:'school',  cat:'입지', icon:'🏫', label:'학군',     desc:'초등학교·학원가 접근성'},
+  {id:'hospital',cat:'입지', icon:'🏥', label:'의료',     desc:'병원·약국 접근성'},
+  {id:'park2',   cat:'입지', icon:'🌳', label:'공원/환경', desc:'공원·녹지·주변 환경 쾌적함'},
+  {id:'noise2',  cat:'입지', icon:'🛣️', label:'도로 소음', desc:'대로변·고가 소음 여부'},
+];
+
+const CK_CATS = ['내부 상태','구조·설계','건물·단지','입지'];
+const RATING = {good:100, ok:60, bad:10};
+
+let ckWeights = {};
+let ckProps = [];
+let ckInited = false;
+
+// 가중치 기본값
+function ckDefaultWeights(){
+  return {water:50,light:80,sound:80,damp:60,ventil:40,
+          direct:60,layout:60,storage:30,elev:30,park:50,
+          mgmt:50,age:40,lobby:20,security:40,
+          station:80,mart:50,school:40,hospital:30,park2:40,noise2:60};
+}
+
+function ckSaveState(){
+  try{ localStorage.setItem('ykk_ck_weights', JSON.stringify(ckWeights));
+       localStorage.setItem('ykk_ck_props', JSON.stringify(ckProps)); }catch(e){}
+}
+function ckLoadState(){
+  try{
+    const w=localStorage.getItem('ykk_ck_weights');
+    const p=localStorage.getItem('ykk_ck_props');
+    if(w) ckWeights=JSON.parse(w);
+    if(p) ckProps=JSON.parse(p);
+  }catch(e){}
+}
+
+function ckScore(prop){
+  let num=0, den=0;
+  CHECK_ITEMS.forEach(item=>{
+    const r=prop.ratings[item.id];
+    const w=ckWeights[item.id]||50;
+    if(r!=null){ num+=RATING[r]*w; den+=100*w; }
+  });
+  return den>0 ? Math.round(num/den*100) : null;
+}
+
+function ckScoreColor(s){
+  if(s===null) return 'var(--sub)';
+  if(s>=80) return 'var(--green)';
+  if(s>=60) return 'var(--gold)';
+  return 'var(--red)';
+}
+
+function ckRenderWeights(){
+  const el=document.getElementById('ckWeightList');
+  if(!el) return;
+  el.innerHTML = CHECK_ITEMS.map(item=>{
+    const w=ckWeights[item.id]||50;
+    return `<div class="ck-wrow">
+      <span class="ck-wlabel">${item.icon} ${item.label}</span>
+      <div class="ck-wbtns">
+        <button class="ck-wbtn${w<=25?' on':''}" data-id="${item.id}" data-v="25">낮음</button>
+        <button class="ck-wbtn${w===50?' on':''}" data-id="${item.id}" data-v="50">보통</button>
+        <button class="ck-wbtn${w===75?' on':''}" data-id="${item.id}" data-v="75">높음</button>
+        <button class="ck-wbtn${w>=100?' on':''}" data-id="${item.id}" data-v="100">최우선</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.ck-wbtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      ckWeights[btn.dataset.id]=parseInt(btn.dataset.v);
+      ckSaveState();
+      ckRenderWeights();
+      ckRenderAllCards();
+      ckRenderComp();
+    });
+  });
+}
+
+function ckRenderCard(prop, idx){
+  const score=ckScore(prop);
+  const scoreStr=score!==null?score+'점':'미평가';
+  const scoreCol=ckScoreColor(score);
+  const cats=CK_CATS.map(cat=>{
+    const items=CHECK_ITEMS.filter(i=>i.cat===cat);
+    const rows=items.map(item=>{
+      const r=prop.ratings[item.id]||null;
+      return `<div class="ck-irow">
+        <div class="ck-ileft">
+          <span class="ck-iicon">${item.icon}</span>
+          <div><div class="ck-ilabel">${item.label}</div><div class="ck-idesc">${item.desc}</div></div>
+        </div>
+        <div class="ck-ibtns">
+          <button class="ck-ibtn ck-good${r==='good'?' on':''}" data-prop="${idx}" data-id="${item.id}" data-r="good">좋음</button>
+          <button class="ck-ibtn ck-ok${r==='ok'?' on':''}"   data-prop="${idx}" data-id="${item.id}" data-r="ok">보통</button>
+          <button class="ck-ibtn ck-bad${r==='bad'?' on':''}" data-prop="${idx}" data-id="${item.id}" data-r="bad">별로</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-top:14px;"><div style="font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;">${cat}</div>${rows}</div>`;
+  }).join('');
+
+  return `<div class="panel" style="margin-top:8px;" id="ckCard${idx}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <input value="${prop.name}" placeholder="매물명 (예: 마포 래미안 102동)"
+        style="border:none;background:transparent;font-size:17px;font-weight:600;color:var(--ink);font-family:inherit;width:100%;outline:none;"
+        data-prop="${idx}" class="ck-name-input"/>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <span style="font-size:22px;font-weight:700;color:${scoreCol};">${scoreStr}</span>
+        <button class="act-btn" style="color:var(--red);border-color:var(--red);" data-del="${idx}">삭제</button>
+      </div>
+    </div>
+    ${cats}
+  </div>`;
+}
+
+function ckRenderAllCards(){
+  const el=document.getElementById('ckPropCards');
+  if(!el) return;
+  el.innerHTML=ckProps.map((p,i)=>ckRenderCard(p,i)).join('');
+
+  // bind name input
+  el.querySelectorAll('.ck-name-input').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      ckProps[parseInt(inp.dataset.prop)].name=inp.value;
+      ckSaveState();
+      ckRenderComp();
+    });
+  });
+  // bind rating btns
+  el.querySelectorAll('.ck-ibtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const pi=parseInt(btn.dataset.prop);
+      const id=btn.dataset.id;
+      const r=btn.dataset.r;
+      // toggle off if already selected
+      if(ckProps[pi].ratings[id]===r) delete ckProps[pi].ratings[id];
+      else ckProps[pi].ratings[id]=r;
+      ckSaveState();
+      ckRenderAllCards();
+      ckRenderComp();
+    });
+  });
+  // bind delete
+  el.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      ckProps.splice(parseInt(btn.dataset.del),1);
+      ckSaveState();
+      ckRenderAllCards();
+      ckRenderComp();
+    });
+  });
+}
+
+function ckRenderComp(){
+  const panel=document.getElementById('ckCompPanel');
+  if(!panel) return;
+  const valid=ckProps.filter(p=>ckScore(p)!==null);
+  if(valid.length<2){ panel.style.display='none'; return; }
+  panel.style.display='';
+
+  // table
+  const tbl=document.getElementById('ckCompTable');
+  const headers='<tr><th style="text-align:left;padding:6px 8px;font-size:13px;color:var(--sub);">항목</th>'+
+    valid.map(p=>`<th style="padding:6px 8px;font-size:13px;color:var(--sub);text-align:center;">${p.name||'매물'}</th>`).join('')+'</tr>';
+  const rows=CHECK_ITEMS.map(item=>{
+    const cells=valid.map(p=>{
+      const r=p.ratings[item.id];
+      const col=r==='good'?'var(--green)':r==='ok'?'var(--gold)':r==='bad'?'var(--red)':'var(--sub)';
+      const txt=r==='good'?'좋':r==='ok'?'보':r==='bad'?'별':'-';
+      return `<td style="text-align:center;padding:4px 8px;font-size:13px;font-weight:600;color:${col};">${txt}</td>`;
+    }).join('');
+    return `<tr><td style="padding:4px 8px;font-size:13px;">${item.icon} ${item.label}</td>${cells}</tr>`;
+  }).join('');
+  const scoreRow='<tr style="border-top:1px solid var(--line);"><td style="padding:8px 8px;font-size:13px;font-weight:700;">종합 점수</td>'+
+    valid.map(p=>{
+      const s=ckScore(p);
+      return `<td style="text-align:center;padding:8px;font-size:16px;font-weight:700;color:${ckScoreColor(s)};">${s}점</td>`;
+    }).join('')+'</tr>';
+  tbl.innerHTML=`<table style="width:100%;border-collapse:collapse;">${headers}${rows}${scoreRow}</table>`;
+
+  // radar chart
+  ckDrawRadar(valid);
+}
+
+function ckDrawRadar(props){
+  const canvas=document.getElementById('ckRadar');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=Math.min(360, canvas.parentElement.clientWidth||360);
+  canvas.style.width=W+'px'; canvas.style.height=W+'px';
+  canvas.width=W*dpr; canvas.height=W*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,W);
+
+  // Use 8 key items for radar
+  const RADAR_IDS=['light','sound','station','park','layout','mgmt','damp','direct'];
+  const labels=RADAR_IDS.map(id=>CHECK_ITEMS.find(i=>i.id===id));
+  const N=labels.length;
+  const cx=W/2, cy=W/2, R=W/2-44;
+  const COLORS=['#0066cc','#1d8a4e','#e8820c','#b44de5','#c62828'];
+
+  // grid
+  ctx.strokeStyle='var(--line,#e5e5ea)';
+  ctx.lineWidth=1;
+  [0.25,0.5,0.75,1].forEach(f=>{
+    ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const a=i/N*Math.PI*2-Math.PI/2;
+      const x=cx+Math.cos(a)*R*f, y=cy+Math.sin(a)*R*f;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath(); ctx.stroke();
+  });
+  // axes
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2-Math.PI/2;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R);
+    ctx.stroke();
+  }
+  // labels
+  ctx.fillStyle='var(--ink,#1c1c1e)';
+  ctx.font='600 11px -apple-system,sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  labels.forEach((item,i)=>{
+    const a=i/N*Math.PI*2-Math.PI/2;
+    const x=cx+Math.cos(a)*(R+20), y=cy+Math.sin(a)*(R+20);
+    ctx.fillText(item?item.icon+item.label:'',x,y);
+  });
+  // data polygons
+  props.forEach((prop,pi)=>{
+    const col=COLORS[pi%COLORS.length];
+    ctx.beginPath();
+    labels.forEach((item,i)=>{
+      const r=item?prop.ratings[item.id]:null;
+      const val=r?RATING[r]/100:0;
+      const a=i/N*Math.PI*2-Math.PI/2;
+      const x=cx+Math.cos(a)*R*val, y=cy+Math.sin(a)*R*val;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    ctx.fillStyle=col+'33'; ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
+  });
+  // legend
+  props.forEach((prop,pi)=>{
+    const col=COLORS[pi%COLORS.length];
+    const y=W-16-pi*18;
+    ctx.fillStyle=col; ctx.fillRect(8,y-6,12,12);
+    ctx.fillStyle='var(--ink,#1c1c1e)';
+    ctx.font='12px -apple-system,sans-serif';
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(prop.name||`매물${pi+1}`,24,y);
+  });
+}
+
+function initCheckView(){
+  if(ckInited) return;
+  ckInited=true;
+  ckLoadState();
+  if(!Object.keys(ckWeights).length) ckWeights=ckDefaultWeights();
+
+  ckRenderWeights();
+
+  // weight toggle
+  const toggle=document.getElementById('ckWeightToggle');
+  const content=document.getElementById('ckWeightContent');
+  if(toggle&&content){
+    toggle.addEventListener('click',()=>{
+      const hidden=content.style.display==='none';
+      content.style.display=hidden?'':'none';
+      toggle.textContent=hidden?'숨기기':'펼치기';
+    });
+  }
+
+  // presets
+  document.getElementById('ckPresetLight')?.addEventListener('click',()=>{
+    ckWeights=ckDefaultWeights();
+    ckWeights.light=100; ckWeights.sound=100; ckWeights.direct=80;
+    ckWeights.station=50; ckWeights.damp=80; ckWeights.noise2=80;
+    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
+  });
+  document.getElementById('ckPresetStation')?.addEventListener('click',()=>{
+    ckWeights=ckDefaultWeights();
+    ckWeights.station=100; ckWeights.mart=80; ckWeights.school=70;
+    ckWeights.light=50; ckWeights.sound=50;
+    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
+  });
+  document.getElementById('ckPresetBalance')?.addEventListener('click',()=>{
+    ckWeights=ckDefaultWeights();
+    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
+  });
+
+  // add property
+  document.getElementById('ckAddProp')?.addEventListener('click',()=>{
+    ckProps.push({name:'', ratings:{}});
+    ckSaveState();
+    ckRenderAllCards();
+    ckRenderComp();
+    // scroll to new card
+    setTimeout(()=>{
+      const cards=document.querySelectorAll('[id^=ckCard]');
+      if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'start'});
+    },100);
+  });
+
+  if(ckProps.length) { ckRenderAllCards(); ckRenderComp(); }
+}
+
+initAreaView();
 </script>
 </body>
 </html>
