@@ -171,10 +171,10 @@
     #map{height:380px;}
   }
   /* ===== 임장 체크리스트 ===== */
-  .ck-wrow{display:flex;align-items:center;justify-content:space-between;padding:5px 0;}
-  .ck-wlabel{font-size:13px;color:var(--ink);flex:1;}
-  .ck-wbtns{display:flex;gap:4px;}
-  .ck-wbtn{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
+  .ck-wrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;}
+  .ck-wlabel{font-size:13px;color:var(--ink);flex:1;min-width:0;}
+  .ck-wbtns{display:flex;gap:4px;flex-shrink:0;}
+  .ck-wbtn{padding:5px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;}
   .ck-wbtn.on{background:var(--gold);border-color:var(--gold);color:#fff;}
   .ck-irow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-top:1px solid var(--track);}
   .ck-ileft{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;}
@@ -190,6 +190,8 @@
   @media(max-width:480px){
     .ck-ibtns{flex-wrap:wrap;gap:3px;}
     .ck-ibtn{padding:4px 6px;font-size:11px;}
+    .ck-wbtns{gap:3px;}
+    .ck-wbtn{padding:5px 7px;font-size:11px;}
     .tabs .tab{font-size:13px;padding:10px 8px;}
   }
 </style>
@@ -344,6 +346,13 @@
       <p class="lede">집을 보러 다닐 때 항목별로 체크하면 두 분만의 가중치로 최종 점수를 자동 계산합니다. 여러 집의 장단점을 한눈에 비교해보세요.</p>
     </div>
 
+    <!-- 임장 모드 토글 -->
+    <div class="stage-chips" id="ckModeChips" style="margin-top:16px;">
+      <button class="toggle-btn on" data-mode="all">🏠 집까지 보기</button>
+      <button class="toggle-btn" data-mode="out">🚶 동네만 보기</button>
+    </div>
+    <div class="hint" id="ckModeHint" style="margin:6px 2px 0;">집 내부 항목까지 모두 체크합니다.</div>
+
     <!-- 가중치 설정 패널 -->
     <div class="panel" style="margin-top:18px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -351,13 +360,8 @@
         <button class="act-btn" id="ckWeightToggle">숨기기</button>
       </div>
       <div id="ckWeightContent">
-        <div class="hint" style="margin-bottom:12px;">1=덜 중요 → 5=매우 중요. 변경 즉시 점수에 반영됩니다.</div>
+        <div class="hint" style="margin-bottom:12px;">항목별 중요도를 정하면 매물 점수에 즉시 반영됩니다.</div>
         <div id="ckWeightList"></div>
-        <div class="actions" style="margin-top:10px;">
-          <button class="act-btn" id="ckPresetLight">☀️ 채광·조용함 중시</button>
-          <button class="act-btn" id="ckPresetStation">🚇 역세권 최우선</button>
-          <button class="act-btn" id="ckPresetBalance">⚖️ 균형 (기본값)</button>
-        </div>
       </div>
     </div>
 
@@ -1004,46 +1008,50 @@ function areaDot(color){
 }
 
 /* ===== 📋 임장 체크리스트 & 스코어링 ===== */
+// area: 'out' = 집에 안 들어가도 동네 돌면서 확인 가능 / 'in' = 집 안에 들어가야 확인 가능
 const CHECK_ITEMS = [
-  // 내부 상태
-  {id:'water',   cat:'내부 상태', icon:'🚿', label:'수압',     desc:'샤워기·수전 수압이 충분한가'},
-  {id:'light',   cat:'내부 상태', icon:'☀️', label:'채광',     desc:'낮에 햇빛이 잘 드는가'},
-  {id:'sound',   cat:'내부 상태', icon:'🔇', label:'방음',     desc:'외부·층간 소음이 적은가'},
-  {id:'damp',    cat:'내부 상태', icon:'💧', label:'결로/곰팡이', desc:'창문 주변·벽에 결로·곰팡이 흔적'},
-  {id:'ventil',  cat:'내부 상태', icon:'🌬️', label:'환기',     desc:'환기가 잘 되고 냄새가 없는가'},
-  // 구조·설계
-  {id:'direct',  cat:'구조·설계', icon:'🧭', label:'향(방향)',  desc:'남향·남동향 등 일조 방향'},
-  {id:'layout',  cat:'구조·설계', icon:'📐', label:'구조·동선', desc:'방·주방·화장실 배치가 편리한가'},
-  {id:'storage', cat:'구조·설계', icon:'📦', label:'수납',     desc:'붙박이장·팬트리 등 수납 공간'},
-  {id:'elev',    cat:'구조·설계', icon:'🛗', label:'엘리베이터', desc:'층수 대비 엘리베이터 개수·대기'},
-  {id:'park',    cat:'구조·설계', icon:'🚗', label:'주차',     desc:'세대당 주차 대수·주차 편의성'},
-  // 건물·단지
-  {id:'mgmt',    cat:'건물·단지', icon:'🏢', label:'관리비',   desc:'월 관리비 수준이 적정한가'},
-  {id:'age',     cat:'건물·단지', icon:'📅', label:'건물 연식', desc:'준공 연도·리모델링 여부'},
-  {id:'lobby',   cat:'건물·단지', icon:'✨', label:'공용부 청결', desc:'복도·로비·계단 청결 상태'},
-  {id:'security',cat:'건물·단지', icon:'🔐', label:'보안',     desc:'CCTV·도어락·경비 수준'},
-  // 입지
-  {id:'station', cat:'입지', icon:'🚇', label:'역세권',    desc:'가장 가까운 지하철역까지 도보'},
-  {id:'mart',    cat:'입지', icon:'🛒', label:'마트/편의', desc:'마트·편의점·시장 접근성'},
-  {id:'school',  cat:'입지', icon:'🏫', label:'학군',     desc:'초등학교·학원가 접근성'},
-  {id:'hospital',cat:'입지', icon:'🏥', label:'의료',     desc:'병원·약국 접근성'},
-  {id:'park2',   cat:'입지', icon:'🌳', label:'공원/환경', desc:'공원·녹지·주변 환경 쾌적함'},
-  {id:'noise2',  cat:'입지', icon:'🛣️', label:'도로 소음', desc:'대로변·고가 소음 여부'},
+  // 입지·교통 (밖에서 확인)
+  {id:'station', cat:'입지·교통', area:'out', icon:'🚇', label:'역세권',    desc:'가장 가까운 지하철역까지 도보'},
+  {id:'mart',    cat:'입지·교통', area:'out', icon:'🛒', label:'마트/편의', desc:'마트·편의점·시장 접근성'},
+  {id:'school',  cat:'입지·교통', area:'out', icon:'🏫', label:'학군',     desc:'초등학교·학원가 접근성'},
+  {id:'hospital',cat:'입지·교통', area:'out', icon:'🏥', label:'의료',     desc:'병원·약국 접근성'},
+  // 동네 분위기 (밖에서 확인)
+  {id:'vibe',    cat:'동네 분위기', area:'out', icon:'🏘️', label:'동네 분위기', desc:'거리 정돈·유동인구·상권 활기'},
+  {id:'safety',  cat:'동네 분위기', area:'out', icon:'🌙', label:'밤길 치안',  desc:'가로등·인적·골목 안전감'},
+  {id:'noise2',  cat:'동네 분위기', area:'out', icon:'🛣️', label:'소음',     desc:'대로변·상가·고가 소음 여부'},
+  {id:'park2',   cat:'동네 분위기', area:'out', icon:'🌳', label:'공원/녹지', desc:'공원·산책로 등 쾌적함'},
+  // 건물·단지 (밖·공용부에서 확인)
+  {id:'age',     cat:'건물·단지', area:'out', icon:'🏗️', label:'건물 상태', desc:'연식·외관·균열·노후도'},
+  {id:'elev',    cat:'건물·단지', area:'out', icon:'🛗', label:'엘리베이터', desc:'층수 대비 엘리베이터 유무·대기'},
+  {id:'park',    cat:'건물·단지', area:'out', icon:'🚗', label:'주차',     desc:'세대당 주차 대수·주차 편의성'},
+  {id:'security',cat:'건물·단지', area:'out', icon:'🔐', label:'보안',     desc:'CCTV·공동현관·경비 수준'},
+  // 집 내부 (집에 들어가서 확인)
+  {id:'light',   cat:'집 내부', area:'in', icon:'☀️', label:'채광',     desc:'낮에 햇빛이 잘 드는가'},
+  {id:'direct',  cat:'집 내부', area:'in', icon:'🧭', label:'향(방향)',  desc:'남향·남동향 등 일조 방향'},
+  {id:'water',   cat:'집 내부', area:'in', icon:'🚿', label:'수압',     desc:'샤워기·수전 수압이 충분한가'},
+  {id:'sound',   cat:'집 내부', area:'in', icon:'🔇', label:'방음',     desc:'외부·층간 소음이 적은가'},
+  {id:'damp',    cat:'집 내부', area:'in', icon:'💧', label:'결로/곰팡이', desc:'창문 주변·벽에 결로·곰팡이 흔적'},
+  {id:'layout',  cat:'집 내부', area:'in', icon:'📐', label:'구조·수납', desc:'방 배치·동선·수납 공간'},
 ];
 
-const CK_CATS = ['내부 상태','구조·설계','건물·단지','입지'];
+const CK_CATS = ['입지·교통','동네 분위기','건물·단지','집 내부'];
 const RATING = {good:100, ok:60, bad:10};
 
 let ckWeights = {};
 let ckProps = [];
 let ckInited = false;
+let ckOutOnly = false;   // 동네 임장 모드: 집 내부 항목 숨김
+
+// 현재 모드에서 보이는 항목/카테고리
+function ckVisibleItems(){ return ckOutOnly ? CHECK_ITEMS.filter(i=>i.area==='out') : CHECK_ITEMS; }
+function ckVisibleCats(){ const ids=new Set(ckVisibleItems().map(i=>i.cat)); return CK_CATS.filter(c=>ids.has(c)); }
 
 // 가중치 기본값
 function ckDefaultWeights(){
-  return {water:50,light:80,sound:80,damp:60,ventil:40,
-          direct:60,layout:60,storage:30,elev:30,park:50,
-          mgmt:50,age:40,lobby:20,security:40,
-          station:80,mart:50,school:40,hospital:30,park2:40,noise2:60};
+  return {station:80,mart:50,school:40,hospital:30,
+          vibe:70,safety:60,noise2:60,park2:40,
+          age:50,elev:30,park:50,security:40,
+          light:80,direct:60,water:50,sound:80,damp:60,layout:60};
 }
 
 function ckSaveState(){
@@ -1079,7 +1087,7 @@ function ckScoreColor(s){
 function ckRenderWeights(){
   const el=document.getElementById('ckWeightList');
   if(!el) return;
-  el.innerHTML = CHECK_ITEMS.map(item=>{
+  el.innerHTML = ckVisibleItems().map(item=>{
     const w=ckWeights[item.id]||50;
     return `<div class="ck-wrow">
       <span class="ck-wlabel">${item.icon} ${item.label}</span>
@@ -1106,8 +1114,8 @@ function ckRenderCard(prop, idx){
   const score=ckScore(prop);
   const scoreStr=score!==null?score+'점':'미평가';
   const scoreCol=ckScoreColor(score);
-  const cats=CK_CATS.map(cat=>{
-    const items=CHECK_ITEMS.filter(i=>i.cat===cat);
+  const cats=ckVisibleCats().map(cat=>{
+    const items=ckVisibleItems().filter(i=>i.cat===cat);
     const rows=items.map(item=>{
       const r=prop.ratings[item.id]||null;
       return `<div class="ck-irow">
@@ -1188,7 +1196,7 @@ function ckRenderComp(){
   const tbl=document.getElementById('ckCompTable');
   const headers='<tr><th style="text-align:left;padding:6px 8px;font-size:13px;color:var(--sub);">항목</th>'+
     valid.map(p=>`<th style="padding:6px 8px;font-size:13px;color:var(--sub);text-align:center;">${p.name||'매물'}</th>`).join('')+'</tr>';
-  const rows=CHECK_ITEMS.map(item=>{
+  const rows=ckVisibleItems().map(item=>{
     const cells=valid.map(p=>{
       const r=p.ratings[item.id];
       const col=r==='good'?'var(--green)':r==='ok'?'var(--gold)':r==='bad'?'var(--red)':'var(--sub)';
@@ -1219,9 +1227,10 @@ function ckDrawRadar(props){
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,W);
 
-  // Use 8 key items for radar
-  const RADAR_IDS=['light','sound','station','park','layout','mgmt','damp','direct'];
-  const labels=RADAR_IDS.map(id=>CHECK_ITEMS.find(i=>i.id===id));
+  // 현재 모드에서 가중치 높은 항목 최대 8개로 레이더 축 구성
+  const labels=ckVisibleItems().slice()
+    .sort((a,b)=>(ckWeights[b.id]||50)-(ckWeights[a.id]||50))
+    .slice(0,8);
   const N=labels.length;
   const cx=W/2, cy=W/2, R=W/2-44;
   const COLORS=['#0066cc','#1d8a4e','#e8820c','#b44de5','#c62828'];
@@ -1300,23 +1309,17 @@ function initCheckView(){
     });
   }
 
-  // presets
-  document.getElementById('ckPresetLight')?.addEventListener('click',()=>{
-    ckWeights=ckDefaultWeights();
-    ckWeights.light=100; ckWeights.sound=100; ckWeights.direct=80;
-    ckWeights.station=50; ckWeights.damp=80; ckWeights.noise2=80;
-    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
-  });
-  document.getElementById('ckPresetStation')?.addEventListener('click',()=>{
-    ckWeights=ckDefaultWeights();
-    ckWeights.station=100; ckWeights.mart=80; ckWeights.school=70;
-    ckWeights.light=50; ckWeights.sound=50;
-    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
-  });
-  document.getElementById('ckPresetBalance')?.addEventListener('click',()=>{
-    ckWeights=ckDefaultWeights();
-    ckSaveState(); ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
-  });
+  // 임장 모드 토글 (집까지 보기 / 동네만 보기)
+  document.querySelectorAll('#ckModeChips .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#ckModeChips .toggle-btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    ckOutOnly = b.dataset.mode==='out';
+    const hint=document.getElementById('ckModeHint');
+    if(hint) hint.textContent = ckOutOnly
+      ? '동네를 돌며 밖에서 확인할 수 있는 항목만 봅니다. 집 내부 항목은 숨겨져요.'
+      : '집 내부 항목까지 모두 체크합니다.';
+    ckRenderWeights(); ckRenderAllCards(); ckRenderComp();
+  }));
 
   // add property
   document.getElementById('ckAddProp')?.addEventListener('click',()=>{
