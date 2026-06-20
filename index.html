@@ -2126,7 +2126,7 @@ async function loanSearchSise(){
         document.getElementById('loanSiseResult').style.display='none'; loanSiseBusy=false; return;
       }
       st.textContent=`${reg.gu} 실거래가 불러오는 중…`;
-      const res=await fetch(`/api/transactions?gu=${encodeURIComponent(reg.gu)}&months=6&limit=100`);
+      const res=await fetch(`/api/transactions?gu=${encodeURIComponent(reg.gu)}&months=12&limit=100`);
       const data=await res.json();
       if(!res.ok){ st.textContent=(data.error||'실거래가 조회 실패'); loanSiseBusy=false; return; }
       const nq=loanNorm(q.replace(reg.gu,'').replace(reg.dong||'',''));
@@ -2141,26 +2141,46 @@ async function loanSearchSise(){
     loanSiseBusy=false;
   });
 }
+function loanPickPrice(label, priceWon){
+  document.getElementById('loanPriceInput').value=Math.round(priceWon/1e4);
+  document.getElementById('loanSearch').value=label;
+  loanCalc();
+  const rp=document.getElementById('loanResultPanel'); if(rp) rp.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function loanRenderSiseMatches(reg, matches){
   const box=document.getElementById('loanSiseResult'); box.style.display='';
   if(!matches.length){ box.innerHTML='<div class="hint">표시할 단지가 없습니다.</div>'; return; }
   box.innerHTML=matches.map((c,i)=>{
-    const price=c.recentPrice||c.avgPrice;
-    const trend=(c.trend!=null)?` · 추세 ${c.trend>0?'+':''}${c.trend}%`:'';
-    return `<div class="ck-irow" style="cursor:pointer" data-sise="${i}">
-      <div class="ck-ileft"><span class="ck-iicon">🏢</span>
-        <div><div class="ck-ilabel">${c.apt}</div>
-          <div class="ck-idesc">${reg.gu} ${c.dong} · 최근 <b>${lWon(price)}</b> · 평균 ${lWon(c.avgPrice)} (${c.dealCount}건)${trend}</div></div></div>
-      <button class="act-btn" data-sise="${i}" style="flex-shrink:0;">선택</button>
-    </div>`;
+    const areas=c.byArea||[];
+    // 평형이 2종 이상이면 단지 클릭 시 펼쳐지는 평형별 목록
+    const sub = areas.length>1 ? `<div class="loan-areas" data-areas="${i}" style="display:none;margin:2px 0 10px 30px;">`+
+        areas.map((a,j)=>`<div class="ck-irow" style="cursor:pointer;padding:7px 0;" data-area="${i}-${j}">
+          <div class="ck-ileft"><span class="ck-iicon">📐</span>
+            <div><div class="ck-ilabel">전용 ${a.area}㎡ · 약 ${a.pyeong}평</div>
+              <div class="ck-idesc">최근 <b>${lWon(a.recentPrice)}</b> · 평균 ${lWon(a.avgPrice)} (${a.count}건)</div></div></div>
+          <button class="act-btn" style="flex-shrink:0;pointer-events:none;">선택</button></div>`).join('')+`</div>` : '';
+    const desc = areas.length>1
+      ? `${reg.gu} ${c.dong} · 평형 ${areas.length}종 (전용 ${areas[0].area}~${areas[areas.length-1].area}㎡)`
+      : `${reg.gu} ${c.dong} · 최근 ${lWon(areas.length===1?areas[0].recentPrice:(c.recentPrice||c.avgPrice))} (${c.dealCount}건)`;
+    return `<div data-sise="${i}" style="border-top:1px solid var(--track);padding-top:8px;">
+      <div class="ck-irow" style="border-top:none;padding-top:0;cursor:pointer;">
+        <div class="ck-ileft"><span class="ck-iicon">🏢</span>
+          <div><div class="ck-ilabel">${c.apt}</div><div class="ck-idesc">${desc}</div></div></div>
+        <button class="act-btn" style="flex-shrink:0;pointer-events:none;">${areas.length>1?'평형 선택 ▾':'선택'}</button>
+      </div>${sub}</div>`;
   }).join('');
-  box.querySelectorAll('[data-sise]').forEach(el=>el.addEventListener('click',()=>{
-    const c=matches[+el.dataset.sise]; const price=c.recentPrice||c.avgPrice;
-    document.getElementById('loanPriceInput').value=Math.round(price/1e4);
-    document.getElementById('loanSearch').value=c.apt;
-    loanCalc();
-    const rp=document.getElementById('loanResultPanel'); if(rp) rp.scrollIntoView({behavior:'smooth',block:'start'});
-  }));
+  // 이벤트 위임: 평형 클릭 → 그 평형 가격, 단지 클릭 → 평형목록 토글(평형 1종 이하면 바로 가격)
+  box.onclick=(e)=>{
+    const areaEl=e.target.closest('[data-area]');
+    if(areaEl){ const [i,j]=areaEl.dataset.area.split('-').map(Number); const c=matches[i], a=c.byArea[j];
+      loanPickPrice(`${c.apt} 전용${a.area}㎡`, a.recentPrice||a.avgPrice); return; }
+    const siseEl=e.target.closest('[data-sise]');
+    if(siseEl){ const i=+siseEl.dataset.sise, c=matches[i], areas=c.byArea||[];
+      if(areas.length>1){ const list=box.querySelector(`.loan-areas[data-areas="${i}"]`); if(list) list.style.display=list.style.display==='none'?'':'none'; }
+      else if(areas.length===1){ loanPickPrice(`${c.apt} 전용${areas[0].area}㎡`, areas[0].recentPrice||areas[0].avgPrice); }
+      else { loanPickPrice(c.apt, c.recentPrice||c.avgPrice); }
+    }
+  };
 }
 
 function initLoanView(){

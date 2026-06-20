@@ -165,6 +165,31 @@ function priceTrend(deals) {
   return Math.round(((avg(newer) - o) / o) * 1000) / 10; // 소수 첫째자리 %
 }
 
+// 단지 내 전용면적(평형)별 가격 분해 — 같은 단지라도 평형마다 가격이 크게 다르므로 분리 제공.
+//   전용㎡를 정수로 반올림해 같은 타입(예: 84.92·84.99 → 85㎡)을 한 평형으로 묶는다.
+//   공급 평형은 전용㎡ × 0.4 근사(전용율 ~75% 가정: 84→34평, 59→24평).
+function byAreaBreakdown(deals) {
+  const m = new Map();
+  for (const d of deals) {
+    if (!d.area) continue;
+    const key = Math.round(d.area);
+    if (!m.has(key)) m.set(key, { area: key, count: 0, sum: 0, recentDate: '', recentPrice: 0 });
+    const g = m.get(key);
+    g.count += 1; g.sum += d.priceWon;
+    if (d.dealDate > g.recentDate) { g.recentDate = d.dealDate; g.recentPrice = d.priceWon; }
+  }
+  return [...m.values()]
+    .map((g) => ({
+      area: g.area,                       // 전용면적(㎡, 정수)
+      pyeong: Math.round(g.area * 0.4),   // 공급 평형 근사값
+      count: g.count,
+      avgPrice: Math.round(g.sum / g.count),
+      recentPrice: g.recentPrice,
+      recentDate: g.recentDate,
+    }))
+    .sort((a, b) => a.area - b.area);
+}
+
 // data.go.kr 응답(JSON 또는 XML) 공용 파서 → { items, error, code }
 //  - K-apt V3 서비스는 기본 응답이 JSON, 실거래가는 XML, 인증오류는 XML(cmmMsgHeader)로 와서 둘 다 처리.
 function parseApiItems(text) {
@@ -335,6 +360,7 @@ module.exports = async function handler(req, res) {
         avgPrice: Math.round(c.sumPrice / c.deals.length),
         recentDate: c.recentDate,
         recentPrice: c.recentPrice,
+        byArea: byAreaBreakdown(c.deals),   // 전용면적(평형)별 가격 분해
         trend: priceTrend(c.deals),   // ㎡당 평균가 전·후반 변화율(%) / null
         // 예산으로 들어갈 수 있는 면적대(예산 이하 거래의 전용면적 범위)
         affordableAreas: c.deals
