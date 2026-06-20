@@ -231,6 +231,32 @@
 </head>
 <body>
 <div class="wrap">
+  <!-- 🔗 기기 간 동기화 (최상단·전 탭 공용) -->
+  <div class="panel" id="syncBar" style="margin-bottom:16px;padding:16px 18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div class="res-label" style="margin:0;">🔗 기기 간 동기화</div>
+      <span id="syncState" class="hint" style="margin:0;white-space:nowrap;"></span>
+    </div>
+    <div id="syncDisc">
+      <div class="hint" style="margin:6px 0 10px;">같은 <b>공유 코드</b> 하나로 영끌 계산 프로필·임장 매물이 폰·컴퓨터에 함께 동기화돼요. 로그인·개인정보 없이 코드만 공유하세요.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="syncInput" placeholder="공유 코드 입력" maxlength="32" autocapitalize="characters" autocomplete="off"
+          style="flex:1;min-width:140px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-family:inherit;letter-spacing:2px;text-transform:uppercase;color:var(--ink);background:var(--bg);outline:none;"/>
+        <button class="act-btn" id="syncJoin">연결</button>
+        <button class="toggle-btn" id="syncNew" style="color:var(--gold);border-color:var(--gold);font-weight:600;flex:0 0 auto;">+ 새 코드 생성</button>
+      </div>
+    </div>
+    <div id="syncConn" style="display:none;">
+      <div class="hint" style="margin:6px 0 8px;">아래 코드를 다른 기기에서 입력하면 같은 데이터를 볼 수 있어요.</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <code id="syncCodeShow" style="font-size:20px;font-weight:700;letter-spacing:3px;color:var(--gold);background:var(--track);padding:8px 14px;border-radius:9px;font-family:inherit;"></code>
+        <button class="act-btn" id="syncCopy">복사</button>
+        <button class="act-btn" id="syncRefresh">새로고침</button>
+        <button class="act-btn" id="syncLeave" style="color:var(--red);border-color:var(--red);margin-left:auto;">연결 해제</button>
+      </div>
+    </div>
+  </div>
+
   <div class="tabs">
     <button class="tab on" data-view="viewLoan">💰 영끌 계산</button>
     <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
@@ -396,25 +422,6 @@
       <div class="binding-box" id="loanRateBox" style="margin-top:14px;margin-bottom:0;"></div>
     </div>
 
-    <!-- 동기화 (임장 체크리스트와 공유 코드 공유) -->
-    <div class="panel" id="loanSyncPanel" style="margin-top:18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <div class="res-label" style="margin:0;">🔗 기기 간 동기화</div>
-        <span id="loanSyncState" class="hint" style="margin:0;white-space:nowrap;"></span>
-      </div>
-      <div class="hint" style="margin:6px 0 10px;">임장 체크리스트 탭과 <b>같은 공유 코드</b>로 재무 프로필·매물이 폰·컴퓨터에 함께 동기화돼요.</div>
-      <div id="loanSyncDisc" style="display:flex;gap:8px;flex-wrap:wrap;">
-        <input id="loanSyncInput" placeholder="공유 코드" maxlength="32" autocapitalize="characters" autocomplete="off"
-          style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-family:inherit;letter-spacing:2px;text-transform:uppercase;color:var(--ink);background:var(--bg);outline:none;"/>
-        <button class="act-btn" id="loanSyncJoin">연결</button>
-        <button class="toggle-btn" id="loanSyncNew" style="color:var(--gold);border-color:var(--gold);font-weight:600;flex:0 0 auto;">+ 새 코드</button>
-      </div>
-      <div id="loanSyncConn" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
-        <code id="loanSyncCode" style="font-size:18px;font-weight:700;letter-spacing:3px;color:var(--gold);background:var(--track);padding:7px 12px;border-radius:9px;font-family:inherit;"></code>
-        <button class="act-btn" id="loanSyncLeave" style="color:var(--red);border-color:var(--red);margin-left:auto;">연결 해제</button>
-      </div>
-    </div>
-
     <!-- ① 내 재무 프로필 (템플릿) -->
     <div class="panel">
       <div class="res-label" style="margin-bottom:4px;">① 내 재무 프로필 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 한 번만 입력하면 자동 저장</span></div>
@@ -538,32 +545,6 @@
     <div>
       <div class="eyebrow">임장 체크리스트 · 매물 스코어링</div>
       <p class="lede">집을 보러 다닐 때 항목별로 체크하면 두 분만의 가중치로 최종 점수를 자동 계산합니다. 여러 집의 장단점을 한눈에 비교해보세요.</p>
-    </div>
-
-    <!-- 기기 간 동기화 (공유 코드) -->
-    <div class="panel" id="ckSyncPanel" style="margin-top:18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <div class="res-label" style="margin:0;">🔗 기기 간 동기화</div>
-        <span id="ckSyncState" class="hint" style="margin:0;white-space:nowrap;"></span>
-      </div>
-      <div id="ckSyncDisconnected">
-        <div class="hint" style="margin:6px 0 10px;">폰·컴퓨터에서 같은 코드를 입력하면 매물 목록이 자동으로 동기화돼요. 로그인·개인정보 없이 코드 하나만 공유하세요.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <input id="ckSyncInput" placeholder="공유 코드 입력" maxlength="32" autocapitalize="characters" autocomplete="off"
-            style="flex:1;min-width:140px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-family:inherit;letter-spacing:2px;text-transform:uppercase;color:var(--ink);background:var(--bg);outline:none;"/>
-          <button class="act-btn" id="ckSyncJoin">연결</button>
-          <button class="toggle-btn" id="ckSyncNew" style="color:var(--gold);border-color:var(--gold);font-weight:600;">+ 새 코드 생성</button>
-        </div>
-      </div>
-      <div id="ckSyncConnected" style="display:none;">
-        <div class="hint" style="margin:6px 0 8px;">아래 코드를 다른 기기에서 입력하면 같은 목록을 볼 수 있어요.</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <code id="ckSyncCodeShow" style="font-size:20px;font-weight:700;letter-spacing:3px;color:var(--gold);background:var(--track);padding:8px 14px;border-radius:9px;font-family:inherit;"></code>
-          <button class="act-btn" id="ckSyncCopy">복사</button>
-          <button class="act-btn" id="ckSyncPullBtn">새로고침</button>
-          <button class="act-btn" id="ckSyncLeave" style="color:var(--red);border-color:var(--red);margin-left:auto;">연결 해제</button>
-        </div>
-      </div>
     </div>
 
     <!-- 임장 모드 토글 -->
@@ -1318,25 +1299,15 @@ function ckTimeStr(ms){
   return p(d.getHours())+':'+p(d.getMinutes());
 }
 function ckSetSyncStatus(msg,isErr){
-  ['ckSyncState','loanSyncState'].forEach(id=>{
-    const el=document.getElementById(id); if(!el) return;
-    el.textContent=msg||''; el.style.color=isErr?'var(--red)':'var(--sub)';
-  });
+  const el=document.getElementById('syncState'); if(!el) return;
+  el.textContent=msg||''; el.style.color=isErr?'var(--red)':'var(--sub)';
 }
-function loanRenderSyncMini(){
-  const disc=document.getElementById('loanSyncDisc'), conn=document.getElementById('loanSyncConn');
-  if(!disc||!conn) return;
-  if(ckSyncCode){ disc.style.display='none'; conn.style.display='flex';
-    const c=document.getElementById('loanSyncCode'); if(c) c.textContent=ckSyncCode; }
-  else{ disc.style.display='flex'; conn.style.display='none'; }
-}
-function ckRenderSync(){
-  const dis=document.getElementById('ckSyncDisconnected');
-  const con=document.getElementById('ckSyncConnected');
-  loanRenderSyncMini();
+function ckRenderSync(){   // 최상단 공용 동기화 바
+  const dis=document.getElementById('syncDisc');
+  const con=document.getElementById('syncConn');
   if(!dis||!con) return;
   if(ckSyncCode){ dis.style.display='none'; con.style.display='';
-    document.getElementById('ckSyncCodeShow').textContent=ckSyncCode; }
+    const c=document.getElementById('syncCodeShow'); if(c) c.textContent=ckSyncCode; }
   else{ dis.style.display=''; con.style.display='none'; }
 }
 function ckSyncSetCode(code){
@@ -1709,32 +1680,7 @@ function initCheckView(){
       if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'start'}); },100);
   });
 
-  // ── 동기화(공유 코드) 버튼 ──
-  ckSyncCode = (function(){ try{ return localStorage.getItem('ykk_sync_code')||null; }catch(e){ return null; } })();
-  ckRenderSync();
-  if(ckSyncCode) ckSyncPull();
-
-  document.getElementById('ckSyncNew')?.addEventListener('click',()=>{
-    ckSyncSetCode(ckGenCode());
-    ckSyncPull();    // 서버가 비어 있으면 현재 기기 데이터를 업로드
-  });
-  document.getElementById('ckSyncJoin')?.addEventListener('click',()=>{
-    const v=(document.getElementById('ckSyncInput').value||'').trim().toUpperCase();
-    if(!/^[A-Z0-9]{4,32}$/.test(v)){ ckSetSyncStatus('코드 형식 오류 (영문/숫자 4자 이상)',true); return; }
-    ckSyncSetCode(v);
-    ckSyncPull();
-  });
-  document.getElementById('ckSyncInput')?.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('ckSyncJoin').click(); });
-  document.getElementById('ckSyncCopy')?.addEventListener('click',()=>{
-    if(navigator.clipboard) navigator.clipboard.writeText(ckSyncCode).then(()=>ckSetSyncStatus('코드 복사됨')).catch(()=>{});
-  });
-  document.getElementById('ckSyncPullBtn')?.addEventListener('click',()=>ckSyncPull());
-  document.getElementById('ckSyncLeave')?.addEventListener('click',()=>{
-    ckSyncSetCode(null); ckSetSyncStatus('연결 해제됨 (데이터는 이 기기에 남아 있어요)');
-  });
-  // 다른 기기에서 바꾼 내용 반영: 탭으로 돌아오면 다시 불러오기
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ckSyncCode) ckSyncPull(); });
-
+  // 동기화(공유 코드)는 최상단 공용 바(initSyncBar)에서 처리 — 여기선 화면만 갱신
   if(ckProps.length){ ckRenderAllCards(); ckRenderComp(); }
 }
 
@@ -2281,17 +2227,27 @@ function initLoanView(){
   document.getElementById('loanCalcBtn').addEventListener('click',loanCalc);
   document.getElementById('loanPriceInput').addEventListener('keydown',e=>{ if(e.key==='Enter') loanCalc(); });
 
-  // 동기화(공유 코드) — 임장 체크리스트와 동일 코드 공유
-  document.getElementById('loanSyncNew').addEventListener('click',()=>{ ckSyncSetCode(ckGenCode()); ckSyncPull(); });
-  document.getElementById('loanSyncJoin').addEventListener('click',()=>{
-    const v=(document.getElementById('loanSyncInput').value||'').trim().toUpperCase();
+  // 동기화(공유 코드)는 최상단 공용 바(initSyncBar)에서 처리
+}
+
+/* 🔗 최상단 공용 동기화 바 — 전 탭이 같은 공유 코드를 공유. 페이지 로드 시 1회 초기화. */
+function initSyncBar(){
+  ckSyncCode = (function(){ try{ return localStorage.getItem('ykk_sync_code')||null; }catch(e){ return null; } })();
+  ckRenderSync();
+  document.getElementById('syncNew')?.addEventListener('click',()=>{ ckSyncSetCode(ckGenCode()); ckSyncPull(); });
+  document.getElementById('syncJoin')?.addEventListener('click',()=>{
+    const v=(document.getElementById('syncInput').value||'').trim().toUpperCase();
     if(!/^[A-Z0-9]{4,32}$/.test(v)){ ckSetSyncStatus('코드 형식 오류 (영문/숫자 4자 이상)',true); return; }
     ckSyncSetCode(v); ckSyncPull();
   });
-  document.getElementById('loanSyncInput').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loanSyncJoin').click(); });
-  document.getElementById('loanSyncLeave').addEventListener('click',()=>{ ckSyncSetCode(null); ckSetSyncStatus('연결 해제됨 (데이터는 이 기기에 남아 있어요)'); });
-  loanRenderSyncMini();
-  if(typeof ckSyncCode!=='undefined' && ckSyncCode) ckSyncPull();
+  document.getElementById('syncInput')?.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('syncJoin').click(); });
+  document.getElementById('syncCopy')?.addEventListener('click',()=>{
+    if(navigator.clipboard && ckSyncCode) navigator.clipboard.writeText(ckSyncCode).then(()=>ckSetSyncStatus('코드 복사됨')).catch(()=>{});
+  });
+  document.getElementById('syncRefresh')?.addEventListener('click',()=>ckSyncPull());
+  document.getElementById('syncLeave')?.addEventListener('click',()=>{ ckSyncSetCode(null); ckSetSyncStatus('연결 해제됨 (데이터는 이 기기에 남아 있어요)'); });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && ckSyncCode) ckSyncPull(); });
+  if(ckSyncCode) ckSyncPull();
 }
 
 /* 정보 툴팁: 모바일(터치)은 hover가 없으므로 탭으로 토글 + 바깥 탭 시 닫기 */
@@ -2302,6 +2258,7 @@ document.addEventListener('click',function(e){
 });
 
 initLoanView();   // 기본 탭 = 영끌 계산
+initSyncBar();    // 최상단 공용 동기화 바
 </script>
 </body>
 </html>
