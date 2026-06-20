@@ -56,6 +56,17 @@
   .frow input::-webkit-inner-spin-button{opacity:.25;}
   .suffix{color:var(--dim); font-size:14px; margin-left:8px;}
   .hint{font-size:12px; color:var(--dim); margin-top:5px; line-height:1.45;}
+  /* 정보 툴팁(ⓘ 호버/탭) */
+  .tip-wrap{position:relative; display:inline-flex; vertical-align:middle; margin-left:5px;}
+  .tip-ic{width:15px; height:15px; border-radius:50%; background:var(--track); color:var(--sub); font-size:10px; font-weight:700; font-style:italic; display:grid; place-items:center; cursor:help; line-height:1;}
+  .tip-wrap:hover .tip-ic, .tip-wrap.open .tip-ic{background:var(--gold); color:#fff;}
+  .tip{position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%);
+    width:262px; max-width:min(262px,78vw); background:var(--ink); color:#fff; font-size:12px; line-height:1.6;
+    font-weight:400; letter-spacing:0; text-transform:none; text-align:left; padding:11px 13px; border-radius:11px;
+    box-shadow:0 10px 30px rgba(0,0,0,.20); opacity:0; visibility:hidden; transition:opacity .14s; z-index:60;}
+  .tip::before{content:''; position:absolute; left:50%; top:-5px; transform:translateX(-50%) rotate(45deg); width:10px; height:10px; background:var(--ink);}
+  .tip b{color:#fff;}
+  .tip-wrap:hover .tip, .tip-wrap.open .tip{opacity:1; visibility:visible;}
   .divider{height:1px; background:var(--line); margin:8px 0 20px;}
   .toggle-group{margin-bottom:18px;}
   .toggle-row{display:flex; gap:8px;}
@@ -211,7 +222,8 @@
     .ck-wbtns{gap:3px;}
     .ck-wbtn{padding:5px 7px;font-size:11px;}
     .ck-info{grid-template-columns:1fr 1fr;gap:8px;}
-    .tabs .tab{font-size:13px;padding:10px 8px;}
+    .tabs{flex-wrap:wrap;}
+    .tabs .tab{font-size:13px;padding:10px 8px;flex:1 1 40%;}
   }
 </style>
 </head>
@@ -219,6 +231,7 @@
 <div class="wrap">
   <div class="tabs">
     <button class="tab on" data-view="viewArea">🏙️ 상권 분석</button>
+    <button class="tab" data-view="viewLoan">💰 영끌 계산</button>
     <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
     <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
   </div>
@@ -358,6 +371,161 @@
     <p class="disclaimer">소상공인시장진흥공단 상가(상권)정보 기준(분기 갱신). 신규·폐업 반영에 시차가 있고 업종 명칭 키워드로 분류해 일부 오분류가 있을 수 있습니다. 밀도·분위기 라벨은 표본 기반 자동 추정으로 참고용입니다. ‘서울 상권 심화’는 서울시 우리마을가게 상권분석서비스(행정동) 기준이며 서울에 한해 표시됩니다.</p>
   </div><!-- /viewArea -->
 
+  <!-- ===== 💰 영끌 계산 뷰 ===== -->
+  <div id="viewLoan" style="display:none;">
+    <div>
+      <div class="eyebrow">영끌 계산 · 대출 가능액 & 필요 자기자본</div>
+      <p class="lede">내 재무 정보를 한 번만 넣어두면(자동 저장), 아파트 시세를 조회해 <b>받을 수 있는 대출</b>과 <b>필요한 내 돈(자기자본)</b>을 거꾸로 계산해 드려요. 한국주택금융공사 보금자리론 + 일반 주담대(스트레스 DSR) 기준.</p>
+    </div>
+
+    <!-- 📌 보금자리론 기준금리 (최상단) -->
+    <div class="panel" id="loanRatePanel" style="margin-top:18px;">
+      <div class="res-label" style="margin-bottom:4px;">📌 보금자리론 기준금리</div>
+      <div class="hint" id="loanRateMeta" style="margin-bottom:12px;"></div>
+      <div class="grid2">
+        <div class="toggle-group" style="margin-bottom:0;"><div class="flabel">상품유형<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip"><b>아낌e-보금자리론</b>: 전자약정·전자등기형으로 금리가 0.1%p 저렴. <b>u-보금자리론</b>: 일반형(창구). 대부분 아낌e가 유리해요.</span></span></div>
+          <div class="toggle-row" id="loanProduct"><button class="toggle-btn" data-v="e">아낌e</button><button class="toggle-btn" data-v="u">u-보금자리</button></div></div>
+        <label class="field" style="margin-bottom:0;"><div class="flabel">대출기간 (만기)</div>
+          <div class="frow"><select id="loanTerm" style="flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:18px;font-weight:600;font-family:inherit;">
+            <option value="10">10년</option><option value="15">15년</option><option value="20">20년</option>
+            <option value="30">30년</option><option value="40">40년</option><option value="50">50년</option>
+          </select></div><div class="hint">만기가 길수록 금리↑</div></label>
+      </div>
+      <div class="binding-box" id="loanRateBox" style="margin-top:14px;margin-bottom:0;"></div>
+    </div>
+
+    <!-- 동기화 (임장 체크리스트와 공유 코드 공유) -->
+    <div class="panel" id="loanSyncPanel" style="margin-top:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="res-label" style="margin:0;">🔗 기기 간 동기화</div>
+        <span id="loanSyncState" class="hint" style="margin:0;white-space:nowrap;"></span>
+      </div>
+      <div class="hint" style="margin:6px 0 10px;">임장 체크리스트 탭과 <b>같은 공유 코드</b>로 재무 프로필·매물이 폰·컴퓨터에 함께 동기화돼요.</div>
+      <div id="loanSyncDisc" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="loanSyncInput" placeholder="공유 코드" maxlength="32" autocapitalize="characters" autocomplete="off"
+          style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-family:inherit;letter-spacing:2px;text-transform:uppercase;color:var(--ink);background:var(--bg);outline:none;"/>
+        <button class="act-btn" id="loanSyncJoin">연결</button>
+        <button class="toggle-btn" id="loanSyncNew" style="color:var(--gold);border-color:var(--gold);font-weight:600;flex:0 0 auto;">+ 새 코드</button>
+      </div>
+      <div id="loanSyncConn" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+        <code id="loanSyncCode" style="font-size:18px;font-weight:700;letter-spacing:3px;color:var(--gold);background:var(--track);padding:7px 12px;border-radius:9px;font-family:inherit;"></code>
+        <button class="act-btn" id="loanSyncLeave" style="color:var(--red);border-color:var(--red);margin-left:auto;">연결 해제</button>
+      </div>
+    </div>
+
+    <!-- ① 내 재무 프로필 (템플릿) -->
+    <div class="panel">
+      <div class="res-label" style="margin-bottom:4px;">① 내 재무 프로필 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 한 번만 입력하면 자동 저장</span></div>
+      <div class="hint" style="margin-bottom:14px;">부부합산 기준으로 넣어주세요. 모든 값은 이 기기(+공유코드)에만 저장됩니다.</div>
+      <div class="grid2">
+        <label class="field"><div class="flabel">보유 현금</div>
+          <div class="frow"><input id="loanCash" type="number" inputmode="decimal" step="0.01" placeholder="예: 1.2"><span class="suffix">억</span></div>
+          <div class="hint">청약통장·예적금 등 동원 가능한 현금 · 1억 2천 → <b>1.2</b></div></label>
+        <label class="field"><div class="flabel">부부합산 연소득</div>
+          <div class="frow"><input id="loanIncome" type="number" inputmode="numeric" placeholder="예: 6500"><span class="suffix">만원</span></div>
+          <div class="hint">세전 합산 · 보금자리론 소득요건 7천만</div></label>
+      </div>
+      <div class="grid2">
+        <div class="toggle-group"><div class="flabel">생애최초<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">세대원 <b>전원</b>이 과거 주택을 소유한 적이 한 번도 없는 경우. 분양권·입주권 보유 이력도 주택 소유로 봐요. 생애최초면 LTV·한도(4.2억)·우대금리에서 유리합니다.</span></span></div>
+          <div class="toggle-row" id="loanFirst"><button class="toggle-btn" data-v="1">예</button><button class="toggle-btn" data-v="0">아니오</button></div></div>
+        <div class="toggle-group"><div class="flabel">규제지역<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip"><b>조정대상지역·투기과열지구·투기지역</b>을 말해요. 현재 서울 강남·서초·송파·용산 등이 해당. 규제지역이면 LTV·DTI가 각 −10%p(단, 생애최초 실수요자는 면제), 금리 +0.1%p 가산됩니다.</span></span></div>
+          <div class="toggle-row" id="loanReg"><button class="toggle-btn" data-v="1">예</button><button class="toggle-btn" data-v="0">아니오</button></div></div>
+      </div>
+      <div class="grid2">
+        <div class="toggle-group"><div class="flabel">근로소득자<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">급여를 받는 직장인(4대보험 가입). 근로소득자가 <b>체증식</b>을 선택하면 DTI를 초기 10년 평균으로 산정해 한도가 늘 수 있어요. 자영업·프리랜서는 ‘아니오’.</span></span></div>
+          <div class="toggle-row" id="loanWage"><button class="toggle-btn" data-v="1">예</button><button class="toggle-btn" data-v="0">아니오</button></div></div>
+        <label class="field"><div class="flabel">나이 (만)</div>
+          <div class="frow"><input id="loanAge" type="number" inputmode="numeric" placeholder="예: 33"><span class="suffix">세</span></div>
+          <div class="hint">체증식은 만 40세 미만만 가능</div></label>
+      </div>
+      <div class="toggle-group"><div class="flabel">상환 방식<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip"><b>원리금균등</b>: 매월 같은 금액 상환(가장 일반적).<br><b>체감식(원금균등)</b>: 매월 같은 원금+줄어드는 이자 → 초기 부담 크고 점점 감소, 총이자 최소.<br><b>체증식</b>: 초기 부담 작고 점점 증가(만 40세 미만+공사 사전심사 시만 가능).</span></span></div>
+        <div class="toggle-row" id="loanRepay">
+          <button class="toggle-btn on" data-v="equal">원리금균등</button>
+          <button class="toggle-btn" data-v="declining">체감식</button>
+          <button class="toggle-btn" data-v="graduated">체증식</button>
+        </div></div>
+      <div class="grid2">
+        <div class="toggle-group"><div class="flabel">6.27 규제예외 (생애최초 LTV 80%)<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip"><b>2025.6.27 가계부채 대책</b>으로 생애최초 LTV가 80%→70%로 축소됐어요. 아래 중 <b>하나라도</b> 해당하면 예외(80% 유지):<br>• 비수도권 + 비규제지역<br>• 구입이 아닌 상환·보전 용도<br>• ’25.6.28 전 매매계약 + 계약금 이체 완료<br>• 입주자모집공고일이 ’25.6.28 전인 수분양자<br>• 분양권 전매신고일이 ’25.6.28 전인 전매권자<br><b>서울에서 지금 새로 사면 보통 ‘아니오’(70%)예요.</b></span></span></div>
+          <div class="toggle-row" id="loanExempt"><button class="toggle-btn" data-v="1">예</button><button class="toggle-btn" data-v="0">아니오</button></div></div>
+        <div class="toggle-group"><div class="flabel">신혼가구 (혼인 7년내)</div>
+          <div class="toggle-row" id="loanNewlywed"><button class="toggle-btn" data-v="1">예</button><button class="toggle-btn" data-v="0">아니오</button></div></div>
+      </div>
+      <div class="toggle-group"><div class="flabel">만 19세 미만 자녀수</div>
+        <div class="toggle-row" id="loanChildren">
+          <button class="toggle-btn" data-v="0">없음</button><button class="toggle-btn" data-v="1">1명</button>
+          <button class="toggle-btn" data-v="2">2명</button><button class="toggle-btn" data-v="3">3명+</button>
+        </div></div>
+      <div class="flabel" style="margin-bottom:6px;">우대금리 항목 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 중복 합산 최대 −1.0%p (신혼·자녀는 위에서 자동 반영)</span></div>
+      <div id="loanPrefs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+      <div class="hint" style="margin-bottom:12px;">요건 충족 여부는 직접 확인하세요. (HF도 “선택은 가능하나 실제 적용은 다를 수 있음”으로 안내) 선택하면 위 <b>기준금리</b> 칸의 적용금리에 바로 반영돼요.</div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+        <div class="flabel" style="margin:0;">기존 부채 (없으면 비워두세요)</div>
+        <button class="act-btn" id="loanAdvToggle">펼치기</button>
+      </div>
+      <div id="loanAdv" style="display:none;margin-top:12px;">
+        <div class="grid3" style="gap:12px;">
+          <label class="field" style="margin:0;"><div class="flabel">기존 주담대 연 원리금</div>
+            <div class="frow"><input id="loanExMort" type="number" inputmode="numeric" placeholder="0"><span class="suffix">만원</span></div></label>
+          <label class="field" style="margin:0;"><div class="flabel">기타부채 연 이자</div>
+            <div class="frow"><input id="loanOtherInt" type="number" inputmode="numeric" placeholder="0"><span class="suffix">만원</span></div></label>
+          <label class="field" style="margin:0;"><div class="flabel">기타부채 연 원리금</div>
+            <div class="frow"><input id="loanOtherPay" type="number" inputmode="numeric" placeholder="0"><span class="suffix">만원</span></div></label>
+        </div>
+        <div class="hint">DTI엔 기타부채 ‘이자’만, DSR엔 ‘원리금’ 전액이 반영됩니다.</div>
+      </div>
+    </div>
+
+    <!-- ② 시세조회 -->
+    <div class="panel">
+      <div class="res-label" style="margin-bottom:4px;">② 아파트 시세조회</div>
+      <div class="hint" style="margin-bottom:12px;">단지명이나 주소를 넣으면 국토부 실거래가(서울 25개구)를 찾아 매매가를 자동으로 채워요.</div>
+      <label class="field" style="margin-bottom:12px;"><div class="flabel">단지명 / 주소</div>
+        <div class="frow"><input id="loanSearch" type="text" placeholder="예: 헬리오시티 · 마포래미안푸르지오" style="font-size:18px;font-weight:500;"></div></label>
+      <button id="loanSearchBtn" class="toggle-btn on" style="width:100%;padding:12px;font-size:14px;font-weight:600;">실거래가 조회</button>
+      <div id="loanSiseStatus" class="hint" style="margin-top:10px;"></div>
+      <div id="loanSiseResult" style="display:none;margin-top:8px;"></div>
+      <div class="divider" style="margin:18px 0 14px;"></div>
+      <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (직접 입력/조정)</div>
+        <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
+        <div class="hint">시세를 선택하면 자동으로 채워지고, 직접 수정도 가능해요.</div></label>
+      <button id="loanCalcBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);">대출 가능액 계산</button>
+    </div>
+
+    <!-- ③ 결과 -->
+    <div class="panel" id="loanResultPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:6px;">받을 수 있는 대출</div>
+      <div class="res-headline">
+        <div class="res-price" id="loanBigLoan">–</div>
+        <div class="res-meta" id="loanLight" style="font-weight:600;"></div>
+      </div>
+      <div class="hint" id="loanBinding" style="margin-top:4px;"></div>
+      <div class="hint" id="loanResultProduct" style="margin-top:2px;color:var(--gold);font-weight:600;"></div>
+
+      <div class="grid2" style="margin-top:18px;gap:14px;">
+        <div class="stat"><div class="k">필요한 내 돈 (자기자본)</div><div class="v" id="loanReqCash">–</div><div class="k" style="margin-top:4px;">매매가−대출+취득세·중개비</div></div>
+        <div class="stat"><div class="k">내 현금 대비</div><div class="v" id="loanCashGap">–</div><div class="k" style="margin-top:4px;">+여유 / −부족</div></div>
+      </div>
+      <div class="binding-box" id="loanMonthly" style="margin-top:14px;"></div>
+
+      <div class="res-label" style="margin:18px 0 8px;">제약별 한도 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 가장 낮은 값이 실제 한도</span></div>
+      <div class="barlist" id="loanConstraints"></div>
+    </div>
+
+    <!-- ④ 내 현금으로 살 수 있는 최대가 (역산) -->
+    <div class="panel" id="loanMaxPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:6px;">💡 내 현금으로 살 수 있는 최대가</div>
+      <div class="res-headline"><div class="res-price" id="loanMaxPrice" style="font-size:40px;">–</div></div>
+      <div class="grid3" style="margin-top:16px;">
+        <div class="stat"><div class="k">이때 대출</div><div class="v" id="loanMaxLoan">–</div></div>
+        <div class="stat"><div class="k">필요 현금</div><div class="v" id="loanMaxReq">–</div></div>
+        <div class="stat"><div class="k">남는 현금</div><div class="v" id="loanMaxLeft">–</div></div>
+      </div>
+    </div>
+
+    <p class="disclaimer">한국주택금융공사 보금자리론 업무처리기준 + 일반 주택담보대출(스트레스 DSR)을 단순화한 추정입니다(규제 기준일 2026.6, 정책 변동 가능). LTV/DTI/DSR·금리·한도는 실제 심사와 다를 수 있고, 체증식 증가율 등 일부 값은 공시되지 않아 근사치를 씁니다. 입력한 재무정보는 서버로 전송되지 않고 이 기기(+공유코드)에만 저장됩니다. 실제 대출은 금융기관 상담을 받으세요.</p>
+  </div><!-- /viewLoan -->
+
   <!-- ===== 임장 체크리스트 뷰 ===== -->
   <div id="viewCheck" style="display:none;">
     <div>
@@ -440,11 +608,11 @@
 <div class="modal-ov" id="whatsnew">
   <div class="modal" role="dialog" aria-modal="true" aria-label="업데이트 안내">
     <h2>이번 업데이트 ✨</h2>
-    <div class="m-sub">임장 체크리스트가 새로 들어왔어요. 집 보러 갈 때 스마트하게!</div>
-    <div class="feat"><div class="ic">📋</div><div><div class="ft">임장 체크리스트 탭 추가</div><div class="fd">수압·채광·방음·결로·역세권 등 항목을 매물마다 체크하면 점수를 자동 계산해요.</div></div></div>
-    <div class="feat"><div class="ic">⚖️</div><div><div class="ft">두 분만의 가중치 설정</div><div class="fd">'우리는 채광과 역세권이 최우선' 같은 우선순위를 직접 정하면 점수 계산에 바로 반영돼요.</div></div></div>
-    <div class="feat"><div class="ic">📊</div><div><div class="ft">매물 비교 & 레이더 차트</div><div class="fd">매물이 2개 이상이면 종합점수 순위표와 카테고리별 레이더 차트로 한눈에 비교돼요.</div></div></div>
-    <div class="feat"><div class="ic">🏙️</div><div><div class="ft">상권 분석이 기본 탭으로</div><div class="fd">가장 많이 쓰이는 상권 분석을 첫 화면으로 바꿨어요.</div></div></div>
+    <div class="m-sub">영끌 계산이 돌아왔어요. 이번엔 시세부터 거꾸로 계산해요.</div>
+    <div class="feat"><div class="ic">💰</div><div><div class="ft">영끌 계산 탭 추가</div><div class="fd">아파트 시세를 조회하면 받을 수 있는 대출과 필요한 내 돈(자기자본)을 거꾸로 계산해요. 보금자리론 + 일반 주담대 기준.</div></div></div>
+    <div class="feat"><div class="ic">🗂️</div><div><div class="ft">내 재무 프로필 템플릿</div><div class="fd">현금·소득·생애최초 등을 한 번만 넣어두면 자동 저장돼서 매번 다시 입력할 필요 없어요.</div></div></div>
+    <div class="feat"><div class="ic">🚦</div><div><div class="ft">신호등으로 한눈에</div><div class="fd">LTV·DTI·DSR 중 뭐에 걸리는지, 현금이 충분한지 🟢🟡🔴로 바로 보여드려요.</div></div></div>
+    <div class="feat"><div class="ic">🔗</div><div><div class="ft">프로필도 기기 간 동기화</div><div class="fd">임장 체크리스트와 같은 공유 코드로 재무 프로필까지 폰·컴퓨터에 함께 동기화돼요.</div></div></div>
     <div style="text-align:center; margin:18px 0 2px; font-size:15px; font-weight:600; color:var(--gold); letter-spacing:.2px;">나연 ♥</div>
     <div class="modal-foot">
       <label><input type="checkbox" id="wnDont"> 다시 보지 않기</label>
@@ -462,7 +630,7 @@
 
 /* ===== 업데이트 안내 모달 (다시 보지 않기 = localStorage) ===== */
 (function whatsNew(){
-  const KEY='ykk_whatsnew_v4';
+  const KEY='ykk_whatsnew_v5';
   const ov=document.getElementById('whatsnew');
   try{ if(localStorage.getItem(KEY)) return; }catch(e){}
   ov.classList.add('show');
@@ -503,9 +671,11 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   const view=t.dataset.view;
   document.getElementById('viewMap').style.display   = view==='viewMap'   ?'':'none';
   document.getElementById('viewArea').style.display  = view==='viewArea'  ?'':'none';
+  document.getElementById('viewLoan').style.display  = view==='viewLoan'  ?'':'none';
   document.getElementById('viewCheck').style.display = view==='viewCheck' ?'':'none';
   if(view==='viewMap')   initMapView();
   if(view==='viewArea')  initAreaView();
+  if(view==='viewLoan')  initLoanView();
   if(view==='viewCheck') initCheckView();
 }));
 
@@ -1115,11 +1285,16 @@ function ckSaveState(){
 }
 
 /* ── 기기 간 동기화 (공유 코드 + /api/sync) ── */
-function ckSyncPayload(){ return { weights: ckWeights, props: ckProps }; }
+function ckSyncPayload(){ return { weights: ckWeights, props: ckProps, profile: loanProfile||undefined }; }
 function ckApplyPayload(d){
   if(d && typeof d==='object'){
     if(d.weights && typeof d.weights==='object') ckWeights = d.weights;
     if(Array.isArray(d.props)) ckProps = d.props;
+    if(d.profile && typeof d.profile==='object'){
+      loanProfile = Object.assign(loanDefaultProfile(), d.profile);
+      try{ localStorage.setItem('ykk_loan_profile', JSON.stringify(loanProfile)); }catch(e){}
+      if(loanInited){ loanWriteProfileToInputs(); loanRecalcIfPrice(); }
+    }
   }
 }
 function ckGenCode(){
@@ -1136,12 +1311,22 @@ function ckTimeStr(ms){
   return p(d.getHours())+':'+p(d.getMinutes());
 }
 function ckSetSyncStatus(msg,isErr){
-  const el=document.getElementById('ckSyncState'); if(!el) return;
-  el.textContent=msg||''; el.style.color=isErr?'var(--red)':'var(--sub)';
+  ['ckSyncState','loanSyncState'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.textContent=msg||''; el.style.color=isErr?'var(--red)':'var(--sub)';
+  });
+}
+function loanRenderSyncMini(){
+  const disc=document.getElementById('loanSyncDisc'), conn=document.getElementById('loanSyncConn');
+  if(!disc||!conn) return;
+  if(ckSyncCode){ disc.style.display='none'; conn.style.display='flex';
+    const c=document.getElementById('loanSyncCode'); if(c) c.textContent=ckSyncCode; }
+  else{ disc.style.display='flex'; conn.style.display='none'; }
 }
 function ckRenderSync(){
   const dis=document.getElementById('ckSyncDisconnected');
   const con=document.getElementById('ckSyncConnected');
+  loanRenderSyncMini();
   if(!dis||!con) return;
   if(ckSyncCode){ dis.style.display='none'; con.style.display='';
     document.getElementById('ckSyncCodeShow').textContent=ckSyncCode; }
@@ -1518,6 +1703,528 @@ function initCheckView(){
 
   if(ckProps.length){ ckRenderAllCards(); ckRenderComp(); }
 }
+
+/* ===================== 💰 영끌 계산 (대출 가능액·필요 자기자본) =====================
+   matching_engine.py / repayment.py를 클라이언트로 포팅.
+   개인 재무 데이터(현금/소득/부채)는 절대 서버로 보내지 않는다 — 모든 계산은 브라우저에서.
+   금액은 내부적으로 '원' 단위, UI 입력은 '만원' 단위.
+   규제 파라미터(2026.6 기준)는 LReg 한 블록에 모음 — 정책 변경 시 여기만 수정. */
+const LReg={
+  LTV_FIRST_HOME:0.70, LTV_GENERAL_REGULATED:0.40,
+  CAP_TIER1:6e8, CAP_TIER2:4e8, CAP_TIER3:2e8,           // 15억↓ 6억 / 25억↓ 4억 / 초과 2억
+  BOGEUM_LIMIT_FIRST:4.2e8, BOGEUM_LIMIT_NORMAL:3.6e8,
+  BOGEUM_PRICE_CEIL:6e8, BOGEUM_LTV:0.70, BOGEUM_INCOME_CEIL:7e7, BOGEUM_RATE:0.042,
+  DSR_BANK:0.40, STRESS_RATE_METRO:0.03,
+  DTI_BASE:0.60, DTI_REGULATED_CUT:0.10,
+  GRAD_MONTHLY_GROWTH:0.0009, GRAD_MAX_YEARS:40, GRAD_AGE_LIMIT:40, DTI_GRAD_AVG_YEARS:10,
+  ACQ_TAX_FIRST:0.012, BROKER_FEE:0.005, MISC_FEE:1e6,
+  GEN_RATE:0.045, GEN_YEARS:50,
+  BOGEUM_INCOME_CEIL_RELAX:8500_0000,   // 신혼·다자녀 시 대출신청 소득상한 완화
+};
+
+/* ── 보금자리론 금리표 (hf.go.kr 금리안내 기준) ──────────────────────────
+   ⚠️ 금리는 매월 갱신된다. 아래는 2026.6 기준 추정치이며, 사용자가 화면에서
+   실제 hf.go.kr 값으로 확인·수정할 수 있다(loanProfile.baseRateOverride).
+   product: 'u'=u-보금자리론 / 'e'=아낌e-보금자리론(전자약정형, 0.1%p 저렴) */
+const LRate={
+  asOf:'2026.6', source:'hf.go.kr 금리안내',
+  status:'동결',                          // 2026.6 현재 상태
+  lastChanged:'2026.5.1 (+0.25%p 인상)',  // 최근 변경: 2026.1·5월 두 차례 +0.25%p, 6월 동결
+  nextReview:'매월 1일 재고시 (다음 2026.7.1 예정)',
+  base:{ 10:{u:4.70,e:4.60}, 15:{u:4.80,e:4.70}, 20:{u:4.85,e:4.75},
+         30:{u:4.90,e:4.80}, 40:{u:4.95,e:4.85}, 50:{u:5.00,e:4.90} },
+  terms:[10,15,20,30,40,50],
+  prefMax:1.0,                          // 우대금리 총 한도 -1.0%p
+  prefs:[                               // 우대 항목(중복 가능, 합산 -1.0%p 한도)
+    {key:'lowYouth', label:'저소득청년', cut:0.1},
+    {key:'newlywed', label:'신혼가구', cut:0.3},
+    {key:'newborn',  label:'신생아 출산', cut:0.2},
+    {key:'child2',   label:'다자녀(2자녀)', cut:0.5},
+    {key:'child3',   label:'다자녀(3자녀+)', cut:0.7},
+    {key:'social',   label:'사회적배려층(한부모·장애·다문화)', cut:0.7},
+    {key:'jeonse',   label:'전세사기피해자', cut:1.0},
+  ],
+  regAdd:0.1,                           // 규제지역 가산금리 +0.1%p
+};
+function lBaseRatePct(u){
+  const row=LRate.base[u.term]||LRate.base[50];
+  return u.product==='u'?row.u:row.e;
+}
+function lPrefCutPct(u){
+  let cut=0; const p=u.prefs||{};
+  LRate.prefs.forEach(x=>{ if(p[x.key]) cut+=x.cut; });
+  return Math.min(cut, LRate.prefMax);
+}
+function lAppliedRate(u){                                   // 적용 금리(소수). 기준금리 − 우대 + 규제가산
+  const base=(u.baseRateOverride!=null && u.baseRateOverride>0) ? u.baseRateOverride : lBaseRatePct(u);
+  const rate=base - lPrefCutPct(u) + (u.regulatedArea?LRate.regAdd:0);
+  return Math.max(rate, 0.5)/100;
+}
+
+/* ── 상환 스케줄 (repayment.py) ── */
+function lDecliningSchedule(loan, annualRate, years){       // 체감식(원금균등): 매월 동일 원금, 이자 감소
+  const r=annualRate/12, n=years*12, prin=loan/n;
+  const rows=[]; let bal=loan;
+  for(let m=1;m<=n;m++){ rows.push({payment:prin+bal*r}); bal-=prin; }
+  return rows;
+}
+function lEqualMonthly(loan, annualRate, years){           // 원리금균등 월 납입(고정)
+  const r=annualRate/12, n=years*12;
+  if(r>0) return loan*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
+  return loan/n;
+}
+function lGraduatedSchedule(loan, annualRate, years, g){    // 체증식: 월 (1+g)배 증가, 만기 잔액 0이 되도록 P0 역산
+  const r=annualRate/12, n=years*12;
+  let growth=0;
+  for(let k=1;k<=n;k++) growth+=Math.pow(1+g,k-1)*Math.pow(1+r,n-k);
+  const p0=loan*Math.pow(1+r,n)/growth;
+  const rows=[]; let bal=loan;
+  for(let m=1;m<=n;m++){ const pay=p0*Math.pow(1+g,m-1); const interest=bal*r; const principal=pay-interest; bal-=principal; rows.push({payment:pay}); }
+  return rows;
+}
+function lGradAvgFirstYears(rows, nYears){                  // 체증식 DTI 특례: 초기 n년 연평균 원리금
+  const months=nYears*12; let total=0;
+  for(let i=0;i<months&&i<rows.length;i++) total+=rows[i].payment;
+  return Math.round(total/nYears);
+}
+
+/* ── 제약 계산 (matching_engine.py) ── */
+function lAmountCap(price){ if(price<=15e8) return LReg.CAP_TIER1; if(price<=25e8) return LReg.CAP_TIER2; return LReg.CAP_TIER3; }
+function lAnnuityPrincipal(annualPayment, rate, years){     // 연 상환가능액 → 대출원금 역산
+  if(rate<=0) return Math.round(annualPayment*years);
+  return Math.round(annualPayment*(1-Math.pow(1+rate,-years))/rate);
+}
+function lBogeumTerm(u){ let t=u.term||50; if(u.repayment==='graduated') t=Math.min(t, LReg.GRAD_MAX_YEARS); return t; }
+function lFirstYearPayment(sched){ let t=0; for(let i=0;i<12&&i<sched.length;i++) t+=sched[i].payment; return Math.round(t); }
+function lAnnualPaymentForLoan(loan, u, rate){             // DTI 산정용 연간 원리금
+  const years=lBogeumTerm(u);
+  if(u.repayment==='graduated'){
+    const sched=lGraduatedSchedule(loan, rate, years, LReg.GRAD_MONTHLY_GROWTH);
+    if(u.isWageEarner) return lGradAvgFirstYears(sched, LReg.DTI_GRAD_AVG_YEARS);
+    let total=0; sched.forEach(r=>total+=r.payment); return Math.round(total/years);
+  }
+  if(u.repayment==='declining') return lFirstYearPayment(lDecliningSchedule(loan, rate, years)); // 체감식: 1차년(최대) 기준
+  return Math.round(lEqualMonthly(loan, rate, years)*12);
+}
+// 실수요자: 생애최초·무주택·6억이하·소득7천이하(보금자리는 구입·6억이하 전제) → 규제지역 LTV·DTI 차감 면제
+function lRealDemand(u){ return u.isFirstHome && u.income<=7000_0000; }
+function lBogeumLtvRate(u){                                 // 생애최초 80%(6.27예외 충족)/70%, 일반 70%, 규제지역 -10%p(실수요자 제외)
+  let ltv = u.isFirstHome ? (u.exempt627?0.80:0.70) : 0.70;
+  if(u.regulatedArea && !lRealDemand(u)) ltv-=0.10;
+  return ltv;
+}
+function lDtiLimit(u, rate){                                // 보금자리론 DTI 역산(스트레스 미적용) — 이분탐색
+  let cap=LReg.DTI_BASE;
+  if(u.regulatedArea && !lRealDemand(u)) cap-=LReg.DTI_REGULATED_CUT;  // 규제지역 -10%p, 실수요자 제외
+  const budget=u.income*cap - u.existingMortgageAnnual - u.otherDebtInterest;
+  if(budget<=0) return 0;
+  let lo=0, hi=20e8;
+  while(hi-lo>10000){ const mid=Math.floor((lo+hi)/2); if(lAnnualPaymentForLoan(mid,u,rate)<=budget) lo=mid; else hi=mid; }
+  return lo;
+}
+function lDsrLimit(u, realRate, years, metro){             // 일반 주담대 스트레스 DSR 역산
+  const stress=realRate+(metro!==false?LReg.STRESS_RATE_METRO:0);
+  const allow=u.income*LReg.DSR_BANK - u.existingMortgageAnnual - u.otherDebtPayment;
+  if(allow<=0) return 0;
+  return lAnnuityPrincipal(allow, stress, years);
+}
+function lRequiredCash(price, loan){                        // 필요현금 = (매매가-대출) + 취득세·중개비·고정부대비
+  return (price-loan) + Math.round(price*LReg.ACQ_TAX_FIRST) + Math.round(price*LReg.BROKER_FEE) + LReg.MISC_FEE;
+}
+function lClassifyLight(ratio, cashGap){
+  if(cashGap>0) return 'red';
+  if(ratio<=0.30) return 'green';
+  if(ratio<=0.40) return 'yellow';
+  return 'red';
+}
+
+/* ── 마무리: 필요현금·월상환·신호등 ── */
+function lFinalize(res, u, price, rate, years, repayment){
+  res.requiredCash=lRequiredCash(price, res.maxLoan);
+  res.cashGap=res.requiredCash-u.cash;
+  res.rate=rate; res.term=years;                            // 적용 금리(소수)·만기 기록
+  let monthlyPay, payLabel;
+  if(repayment==='graduated'){
+    const sched=lGraduatedSchedule(res.maxLoan, rate, years, LReg.GRAD_MONTHLY_GROWTH);
+    monthlyPay=sched[0].payment;
+    payLabel=`1회차 ${lWon(Math.round(sched[0].payment))} → 만기 ${lWon(Math.round(sched[sched.length-1].payment))} (체증식)`;
+  }else if(repayment==='declining'){
+    const sched=lDecliningSchedule(res.maxLoan, rate, years);
+    monthlyPay=sched[0].payment;
+    payLabel=`1회차 ${lWon(Math.round(sched[0].payment))} → 만기 ${lWon(Math.round(sched[sched.length-1].payment))} (체감식)`;
+  }else{
+    monthlyPay=lEqualMonthly(res.maxLoan, rate, years);
+    payLabel=`월 ${lWon(Math.round(monthlyPay))} (균등)`;
+  }
+  const monthlyIncome=u.income/12;
+  res.ratio=monthlyIncome?monthlyPay/monthlyIncome:1;
+  res.monthlyPay=Math.round(monthlyPay); res.payLabel=payLabel;
+  res.light=lClassifyLight(res.ratio, res.cashGap);
+}
+
+/* ── 매칭 엔진 본체 ── */
+const REPAY_LABEL={equal:'원리금균등', declining:'체감식', graduated:'체증식'};
+function lEvalBogeum(u, price){
+  const res={loanType:'보금자리론', price, maxLoan:0, binding:'', constraints:[], eligible:true, reasons:[]};
+  if(price>LReg.BOGEUM_PRICE_CEIL){ res.eligible=false; res.reasons.push(`주택가격 ${lWon(price)}이 보금자리론 상한 6억 초과 → 일반 주담대로 전환`); return res; }
+  const incomeCeil = (u.newlywed || (u.children||0)>=2) ? LReg.BOGEUM_INCOME_CEIL_RELAX : LReg.BOGEUM_INCOME_CEIL;
+  if(u.income>incomeCeil){ res.eligible=false; res.reasons.push(`합산소득 ${lWon(u.income)}이 소득요건 ${lWon(incomeCeil)} 초과 → 일반 주담대로 전환`); return res; }
+  let user=u;
+  if(u.repayment==='graduated' && u.age>=LReg.GRAD_AGE_LIMIT){ res.reasons.push(`만 ${u.age}세 → 체증식 불가(만 40세 미만). 원리금균등으로 전환`); user=Object.assign({},u,{repayment:'equal'}); }
+  const term=lBogeumTerm(user);
+  const rate=lAppliedRate(user);
+  res.loanType += `(${user.isFirstHome?'생애최초':'일반'}·${user.product==='u'?'u':'아낌e'}) / ${REPAY_LABEL[user.repayment]||'원리금균등'} ${term}년`;
+  const ltvRate=lBogeumLtvRate(user);
+  const ltv={name:`LTV ${Math.round(ltvRate*100)}%`, limit:Math.round(price*ltvRate), note:user.isFirstHome?(user.exempt627?'생애최초·6.27예외 80%':'생애최초 70%'):'일반 70%'};
+  const cap={name:'보금자리론 한도', limit:user.isFirstHome?LReg.BOGEUM_LIMIT_FIRST:LReg.BOGEUM_LIMIT_NORMAL, note:user.isFirstHome?'생애최초 4.2억':'일반 3.6억'};
+  const dtiNote=user.repayment==='graduated'?'체증식 초기10년 평균':(user.repayment==='declining'?'체감식 1차년 기준':'고정금리 정책모기지');
+  const dti={name:'DTI 60%', limit:lDtiLimit(user, rate), note:dtiNote+(user.regulatedArea&&!lRealDemand(user)?' · 규제 -10%p':'')};
+  res.constraints=[ltv,cap,dti];
+  const b=res.constraints.reduce((a,c)=>c.limit<a.limit?c:a);
+  res.maxLoan=b.limit; res.binding=b.name;
+  lFinalize(res, user, price, rate, term, user.repayment);
+  return res;
+}
+function lEvalGeneral(u, price){
+  const years=LReg.GEN_YEARS, rate=LReg.GEN_RATE;
+  const res={loanType:'일반 주담대 / 원리금균등 50년', price, maxLoan:0, binding:'', constraints:[], eligible:true, reasons:[]};
+  const ltvRate=u.isFirstHome?LReg.LTV_FIRST_HOME:LReg.LTV_GENERAL_REGULATED;
+  const ltv={name:`LTV ${Math.round(ltvRate*100)}%`, limit:Math.round(price*ltvRate)};
+  const cap={name:'금액 캡', limit:lAmountCap(price)};
+  const dsr={name:'스트레스 DSR', limit:lDsrLimit(u, rate, years, true), note:'수도권 +3.0%p 가산'};
+  res.constraints=[ltv,cap,dsr];
+  const b=res.constraints.reduce((a,c)=>c.limit<a.limit?c:a);
+  res.maxLoan=b.limit; res.binding=b.name;
+  lFinalize(res, u, price, rate, years, 'equal');
+  return res;
+}
+function lMatch(u, price){
+  const bg=lEvalBogeum(u, price);
+  if(bg.eligible) return bg;
+  const gen=lEvalGeneral(u, price);
+  gen.reasons=bg.reasons.concat(gen.reasons);
+  return gen;
+}
+function lMaxAffordablePrice(u){                            // 보유현금으로 '풀 대출' 시 매수 가능한 최대 주택가격 역산
+  let lo=0, hi=30e8;
+  while(hi-lo>1e5){ const mid=Math.floor((lo+hi)/2); const res=lMatch(u,mid); if(lRequiredCash(mid,res.maxLoan)<=u.cash) lo=mid; else hi=mid; }
+  const best=lMatch(u, lo);
+  const req=lRequiredCash(lo, best.maxLoan);
+  return {maxPrice:lo, loan:best.maxLoan, requiredCash:req, cashLeft:u.cash-req};
+}
+
+/* ── 원 단위 → '억/만' 한글 표기 ── */
+function lWon(amount){
+  const neg=amount<0; amount=Math.abs(Math.round(amount));
+  const eok=Math.floor(amount/1e8), man=Math.floor((amount%1e8)/1e4);
+  const parts=[];
+  if(eok) parts.push(eok+'억');
+  if(man) parts.push(eok?man.toLocaleString()+'만':man.toLocaleString()+'만원');
+  if(!parts.length) parts.push('0원');
+  return (neg?'-':'')+parts.join(' ');
+}
+
+/* ===================== 영끌 계산 뷰 (상태·입출력) ===================== */
+let loanProfile=null, loanInited=false, loanSiseBusy=false;
+function loanDefaultProfile(){
+  return {cash:0, income:0, isFirstHome:true, regulatedArea:true, isWageEarner:true, age:33,
+          repayment:'equal', existingMortgageAnnual:0, otherDebtInterest:0, otherDebtPayment:0,
+          product:'e', term:50, exempt627:false, newlywed:false, children:0,
+          prefs:{}, baseRateOverride:null};
+}
+function loanEngineUser(){
+  const p=loanProfile;
+  return {cash:p.cash, income:p.income, isFirstHome:p.isFirstHome,
+          regulatedArea:p.regulatedArea, isWageEarner:p.isWageEarner, age:p.age,
+          repayment:p.repayment, existingMortgageAnnual:p.existingMortgageAnnual,
+          otherDebtInterest:p.otherDebtInterest, otherDebtPayment:p.otherDebtPayment,
+          product:p.product||'e', term:p.term||50, exempt627:!!p.exempt627,
+          newlywed:!!p.newlywed, children:p.children||0,
+          prefs:p.prefs||{}, baseRateOverride:p.baseRateOverride};
+}
+
+/* 우대금리 체크리스트(신혼·다자녀는 별도 토글에서 자동 반영하므로 제외) */
+const LOAN_PREF_CHECK=[
+  {key:'lowYouth',label:'저소득청년',cut:0.1},
+  {key:'newborn', label:'신생아 출산',cut:0.2},
+  {key:'social',  label:'한부모·장애·다문화',cut:0.7},
+  {key:'jeonse',  label:'전세사기피해자',cut:1.0},
+];
+function loanDerivePrefs(){   // 신혼·자녀 토글 → prefs로 자동 반영
+  loanProfile.prefs=loanProfile.prefs||{};
+  loanProfile.prefs.newlywed=!!loanProfile.newlywed;
+  loanProfile.prefs.child2=(loanProfile.children===2);
+  loanProfile.prefs.child3=((loanProfile.children||0)>=3);
+}
+function loanRenderPrefs(){
+  const wrap=document.getElementById('loanPrefs'); if(!wrap) return;
+  const p=loanProfile.prefs||{};
+  wrap.innerHTML=LOAN_PREF_CHECK.map(x=>`<button type="button" class="ck-wbtn${p[x.key]?' on':''}" data-pref="${x.key}">${x.label} −${x.cut}</button>`).join('');
+  wrap.querySelectorAll('[data-pref]').forEach(b=>b.addEventListener('click',()=>{
+    loanProfile.prefs=loanProfile.prefs||{}; loanProfile.prefs[b.dataset.pref]=!loanProfile.prefs[b.dataset.pref];
+    b.classList.toggle('on'); loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+}
+/* 금리 박스: 기준금리(자동/수정) − 우대 + 규제가산 → 적용금리 실시간 */
+function loanRenderRate(){
+  const box=document.getElementById('loanRateBox'); if(!box) return;
+  const meta=document.getElementById('loanRateMeta');
+  if(meta) meta.innerHTML=`기준일 <b>${LRate.asOf}</b>(${LRate.status}) · 최근 변경 <b>${LRate.lastChanged}</b> · 다음 변경 ${LRate.nextReview}`;
+  const u=loanEngineUser();
+  const auto=lBaseRatePct(u);
+  const base=(u.baseRateOverride!=null&&u.baseRateOverride>0)?u.baseRateOverride:auto;
+  const cut=lPrefCutPct(u);
+  const applied=base - cut + (u.regulatedArea?LRate.regAdd:0);
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span>기준금리<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">보금자리론의 <b>출발 금리</b>예요. 선택한 상품유형·만기에 따라 HF 금리표에서 자동으로 와요(예: 아낌e·50년 4.90%, u·50년 5.00%). 여기에 <b>우대금리(−)</b>와 <b>규제가산(+0.1%p)</b>을 적용한 게 아래 ‘적용금리’입니다. hf.go.kr 실제 값과 다르면 숫자를 직접 고치세요.</span></span></span>
+      <input id="loanBaseRate" type="number" step="0.01" inputmode="decimal" value="${base.toFixed(2)}"
+        style="width:72px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:15px;font-weight:600;font-family:inherit;background:var(--panel);color:var(--ink);text-align:right;outline:none;"/>
+      <span>%</span>
+      ${u.baseRateOverride!=null
+        ? `<button class="act-btn" id="loanBaseReset" style="padding:4px 10px;">자동 ${auto.toFixed(2)}%</button>`
+        : `<span class="pc" style="color:var(--dim);font-size:12px;">${u.product==='u'?'u-보금자리':'아낌e'}·${u.term}년 자동</span>`}
+    </div>
+    <div style="margin-top:6px;">우대 −${cut.toFixed(1)}%p ${u.regulatedArea?'· 규제가산 +0.1%p ':''}→ 적용금리 <b id="loanAppliedRate" style="color:var(--gold);font-size:16px;">${applied.toFixed(2)}%</b></div>
+    <div class="pc" style="font-size:11px;color:var(--dim);margin-top:5px;">${LRate.source} 기준 추정값이에요. 매월 1일 바뀔 수 있으니 실제와 다르면 위 숫자를 직접 수정하세요. <a href="https://www.hf.go.kr/ko/sub01/sub01_01_04.do" target="_blank" rel="noopener" style="color:var(--gold);font-weight:600;">실제 금리 확인 ↗</a></div>`;
+  const bi=document.getElementById('loanBaseRate');
+  if(bi){
+    bi.addEventListener('input',()=>{                       // 입력 중 박스 재렌더 금지(포커스 유지) — 적용금리 텍스트만 갱신
+      const v=parseFloat(bi.value); loanProfile.baseRateOverride=(v>0)?v:null;
+      const a=(v>0?v:lBaseRatePct(loanEngineUser())) - lPrefCutPct(loanEngineUser()) + (loanProfile.regulatedArea?LRate.regAdd:0);
+      const ar=document.getElementById('loanAppliedRate'); if(ar) ar.textContent=a.toFixed(2)+'%';
+      loanSaveProfile(); loanRecalcIfPrice();
+    });
+    bi.addEventListener('change',()=>{ loanRenderRate(); }); // 입력 완료(blur) 시 재렌더 → '자동' 리셋 버튼 노출
+  }
+  const br=document.getElementById('loanBaseReset');
+  if(br) br.addEventListener('click',()=>{ loanProfile.baseRateOverride=null; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice(); });
+}
+
+/* 프로필 ↔ 입력 폼 동기화 (저장은 원, 입력은 만원) */
+function loanWriteProfileToInputs(){
+  const setMan=(id,won)=>{ const el=document.getElementById(id); if(el) el.value=won?Math.round(won/1e4):''; };
+  const cashEl=document.getElementById('loanCash');                 // 보유현금은 '억' 단위 입력
+  if(cashEl) cashEl.value=loanProfile.cash?(Math.round(loanProfile.cash/1e6)/100):'';
+  setMan('loanIncome',loanProfile.income);
+  setMan('loanExMort',loanProfile.existingMortgageAnnual);
+  setMan('loanOtherInt',loanProfile.otherDebtInterest); setMan('loanOtherPay',loanProfile.otherDebtPayment);
+  const ageEl=document.getElementById('loanAge'); if(ageEl) ageEl.value=loanProfile.age||'';
+  loanSetToggle('loanFirst',loanProfile.isFirstHome);
+  loanSetToggle('loanReg',loanProfile.regulatedArea);
+  loanSetToggle('loanWage',loanProfile.isWageEarner);
+  loanSetToggle('loanExempt',loanProfile.exempt627);
+  loanSetToggle('loanNewlywed',loanProfile.newlywed);
+  document.querySelectorAll('#loanRepay .toggle-btn').forEach(b=>b.classList.toggle('on', b.dataset.v===loanProfile.repayment));
+  document.querySelectorAll('#loanProduct .toggle-btn').forEach(b=>b.classList.toggle('on', b.dataset.v===(loanProfile.product||'e')));
+  document.querySelectorAll('#loanChildren .toggle-btn').forEach(b=>b.classList.toggle('on', +b.dataset.v===(loanProfile.children||0)));
+  const termEl=document.getElementById('loanTerm'); if(termEl) termEl.value=String(loanProfile.term||50);
+  loanRenderPrefs(); loanRenderRate();
+}
+function loanSetToggle(id,val){ const g=document.getElementById(id); if(!g) return;
+  g.querySelectorAll('.toggle-btn').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===!!val)); }
+function loanReadInputsToProfile(){
+  const man=id=>{ const v=parseFloat(document.getElementById(id).value); return v>0?Math.round(v*1e4):0; };
+  const cashV=parseFloat(document.getElementById('loanCash').value); // 보유현금은 '억' 단위 → 원
+  loanProfile.cash=cashV>0?Math.round(cashV*1e8):0;
+  loanProfile.income=man('loanIncome');
+  loanProfile.existingMortgageAnnual=man('loanExMort');
+  loanProfile.otherDebtInterest=man('loanOtherInt'); loanProfile.otherDebtPayment=man('loanOtherPay');
+  loanProfile.age=parseInt(document.getElementById('loanAge').value)||33;
+  const termEl=document.getElementById('loanTerm'); if(termEl) loanProfile.term=parseInt(termEl.value)||50;
+  loanDerivePrefs();
+}
+function loanSaveProfile(){
+  try{ localStorage.setItem('ykk_loan_profile', JSON.stringify(loanProfile)); }catch(e){}
+  if(typeof ckSyncCode!=='undefined' && ckSyncCode && !ckApplyingRemote) ckSchedulePush();
+}
+function loanBindToggle(id,field){
+  const g=document.getElementById(id);
+  g.querySelectorAll('.toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    g.querySelectorAll('.toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    loanProfile[field]=b.dataset.v==='1'; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+}
+function loanRecalcIfPrice(){
+  const p=parseFloat((document.getElementById('loanPriceInput')||{}).value);
+  if(p>0 && document.getElementById('loanResultPanel') && document.getElementById('loanResultPanel').style.display!=='none') loanCalc();
+}
+
+/* ── 계산 실행 ── */
+function loanCalc(){
+  loanReadInputsToProfile();
+  const priceMan=parseFloat(document.getElementById('loanPriceInput').value);
+  if(!priceMan||priceMan<=0){ document.getElementById('loanSiseStatus').textContent='매매가(만원)를 입력하거나 시세를 선택하세요.'; return; }
+  if(!loanProfile.income){ document.getElementById('loanSiseStatus').textContent='먼저 ① 재무 프로필의 연소득을 입력하세요.'; }
+  const price=Math.round(priceMan*1e4);
+  const u=loanEngineUser();
+  loanRenderResult(lMatch(u, price));
+  loanRenderMax(lMaxAffordablePrice(u));
+}
+function loanRenderResult(res){
+  document.getElementById('loanResultPanel').style.display='';
+  document.getElementById('loanBigLoan').textContent=lWon(res.maxLoan);
+  document.getElementById('loanResultProduct').textContent=res.loanType;
+  document.getElementById('loanBinding').textContent='걸린 제약: '+res.binding+(res.reasons.length?` · ${res.reasons[res.reasons.length-1]}`:'');
+  document.getElementById('loanReqCash').textContent=lWon(res.requiredCash);
+  const gap=document.getElementById('loanCashGap');
+  if(res.cashGap>0){ gap.textContent=lWon(res.cashGap)+' 부족'; gap.style.color='var(--red)'; }
+  else{ gap.textContent=lWon(-res.cashGap)+' 여유'; gap.style.color='var(--green)'; }
+  const isGen=/^일반/.test(res.loanType);
+  const rateLabel=isGen
+    ? `금리 <b>${(res.rate*100).toFixed(2)}%</b><span style="color:var(--dim)">(은행별 상이·참고)</span>`
+    : `적용금리 <b style="color:var(--gold)">${(res.rate*100).toFixed(2)}%</b>`;
+  document.getElementById('loanMonthly').innerHTML=`${rateLabel} · ${res.payLabel} · 월소득 대비 <b>${Math.round(res.ratio*100)}%</b>`;
+  const light=document.getElementById('loanLight');
+  const M={green:['🟢 안전','var(--green)'],yellow:['🟡 타이트','#e8820c'],red:['🔴 위험·현금부족','var(--red)']};
+  light.textContent=M[res.light][0]; light.style.color=M[res.light][1];
+  const maxC=Math.max.apply(null, res.constraints.map(c=>c.limit).concat([1]));
+  document.getElementById('loanConstraints').innerHTML=res.constraints.map(c=>{
+    const bind=c.name===res.binding, pct=Math.round(c.limit/maxC*100);
+    return `<div class="barrow"><div class="bn" style="flex:0 0 120px;white-space:normal;line-height:1.25;">${c.name}${c.note?`<br><span style="font-size:11px;color:var(--dim)">${c.note}</span>`:''}</div>
+      <div class="bt"><div class="bf" style="width:${pct}%;background:${bind?'var(--gold)':'var(--track)'}"></div></div>
+      <div class="bc">${lWon(c.limit)}${bind?' ◀':''}</div></div>`;
+  }).join('');
+}
+function loanRenderMax(mx){
+  document.getElementById('loanMaxPanel').style.display='';
+  document.getElementById('loanMaxPrice').textContent=lWon(mx.maxPrice);
+  document.getElementById('loanMaxLoan').textContent=lWon(mx.loan);
+  document.getElementById('loanMaxReq').textContent=lWon(mx.requiredCash);
+  document.getElementById('loanMaxLeft').textContent=lWon(mx.cashLeft);
+}
+
+/* ── 시세조회: 단지명/주소 → 자치구 → 실거래가 → 단지 매칭 ── */
+function loanNorm(s){ return String(s||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'').replace(/아파트|단지|APT/gi,'').replace(/[·.,'’\-]/g,'').toLowerCase(); }
+function loanRegion(loc){
+  return new Promise(resolve=>{
+    if(!geocoder||!geocoder.coord2RegionCode){ resolve(null); return; }
+    geocoder.coord2RegionCode(loc.lng, loc.lat, (result,status)=>{
+      if(status!==kakao.maps.services.Status.OK||!result){ resolve(null); return; }
+      const h=result.find(r=>r.region_type==='H')||result[0];
+      resolve({si:h.region_1depth_name, gu:h.region_2depth_name, dong:h.region_3depth_name});
+    });
+  });
+}
+function loanEnsureKakao(cb){
+  withKakao(ok=>{ if(ok && !areaPlaces && window.kakao && kakao.maps.services && kakao.maps.services.Places) areaPlaces=new kakao.maps.services.Places(); cb(ok); });
+}
+async function loanSearchSise(){
+  if(loanSiseBusy) return;
+  const q=document.getElementById('loanSearch').value.trim();
+  const st=document.getElementById('loanSiseStatus');
+  if(!q){ st.textContent='단지명이나 주소를 입력하세요.'; return; }
+  loanSiseBusy=true; st.textContent='위치를 찾는 중…';
+  loanEnsureKakao(async ok=>{
+    if(!ok){ st.textContent='카카오 지도를 불러오지 못했습니다. (도메인 등록 확인 후 새로고침)'; loanSiseBusy=false; return; }
+    try{
+      const loc=await resolveLocation(q);
+      if(!loc){ st.textContent='위치를 찾지 못했습니다. 더 구체적인 단지명/주소로 시도하세요.'; loanSiseBusy=false; return; }
+      const reg=await loanRegion(loc);
+      if(!reg){ st.textContent='행정구역을 확인하지 못했습니다.'; loanSiseBusy=false; return; }
+      if(reg.si!=='서울특별시' || !SEOUL_GU.includes(reg.gu)){
+        st.innerHTML=`"${reg.gu||loc.label}"은(는) 실거래가 자동조회(서울 25개구)를 지원하지 않아요. 아래에 매매가를 직접 입력해 주세요.`;
+        document.getElementById('loanSiseResult').style.display='none'; loanSiseBusy=false; return;
+      }
+      st.textContent=`${reg.gu} 실거래가 불러오는 중…`;
+      const res=await fetch(`/api/transactions?gu=${encodeURIComponent(reg.gu)}&months=6&limit=100`);
+      const data=await res.json();
+      if(!res.ok){ st.textContent=(data.error||'실거래가 조회 실패'); loanSiseBusy=false; return; }
+      const nq=loanNorm(q.replace(reg.gu,'').replace(reg.dong||'',''));
+      let matches=(data.complexes||[]).filter(c=>{ const nc=loanNorm(c.apt); return nc && nq && (nc.includes(nq)||nq.includes(nc)); });
+      let fallback=false;
+      if(!matches.length){ matches=(data.complexes||[]).slice(0,8); fallback=true; }
+      loanRenderSiseMatches(reg, matches);
+      st.innerHTML=fallback
+        ? `"${q}"와 정확히 일치하는 단지를 못 찾아 ${reg.gu} 단지를 가격순으로 보여드려요. 원하는 단지를 고르세요.`
+        : `${reg.gu}에서 ${matches.length}개 단지 찾음. 단지를 누르면 매매가가 채워져요.`;
+    }catch(e){ st.textContent='조회 오류: '+e.message; }
+    loanSiseBusy=false;
+  });
+}
+function loanRenderSiseMatches(reg, matches){
+  const box=document.getElementById('loanSiseResult'); box.style.display='';
+  if(!matches.length){ box.innerHTML='<div class="hint">표시할 단지가 없습니다.</div>'; return; }
+  box.innerHTML=matches.map((c,i)=>{
+    const price=c.recentPrice||c.avgPrice;
+    const trend=(c.trend!=null)?` · 추세 ${c.trend>0?'+':''}${c.trend}%`:'';
+    return `<div class="ck-irow" style="cursor:pointer" data-sise="${i}">
+      <div class="ck-ileft"><span class="ck-iicon">🏢</span>
+        <div><div class="ck-ilabel">${c.apt}</div>
+          <div class="ck-idesc">${reg.gu} ${c.dong} · 최근 <b>${lWon(price)}</b> · 평균 ${lWon(c.avgPrice)} (${c.dealCount}건)${trend}</div></div></div>
+      <button class="act-btn" data-sise="${i}" style="flex-shrink:0;">선택</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('[data-sise]').forEach(el=>el.addEventListener('click',()=>{
+    const c=matches[+el.dataset.sise]; const price=c.recentPrice||c.avgPrice;
+    document.getElementById('loanPriceInput').value=Math.round(price/1e4);
+    document.getElementById('loanSearch').value=c.apt;
+    loanCalc();
+    const rp=document.getElementById('loanResultPanel'); if(rp) rp.scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+}
+
+function initLoanView(){
+  if(loanInited) return; loanInited=true;
+  if(typeof ckLoadState==='function') ckLoadState();   // 동기화 푸시 시 체크리스트 데이터도 함께 실리도록 미리 로드
+  if(!loanProfile){
+    try{ const s=localStorage.getItem('ykk_loan_profile'); loanProfile=s?JSON.parse(s):null; }catch(e){}
+  }
+  loanProfile=Object.assign(loanDefaultProfile(), loanProfile||{});
+  loanWriteProfileToInputs();
+
+  ['loanCash','loanIncome','loanAge','loanExMort','loanOtherInt','loanOtherPay'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',()=>{ loanReadInputsToProfile(); loanSaveProfile(); loanRecalcIfPrice(); });
+  });
+  loanBindToggle('loanFirst','isFirstHome');
+  loanBindToggle('loanReg','regulatedArea');
+  loanBindToggle('loanWage','isWageEarner');
+  loanBindToggle('loanExempt','exempt627');
+  document.querySelectorAll('#loanRepay .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#loanRepay .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    loanProfile.repayment=b.dataset.v; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+  document.querySelectorAll('#loanProduct .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#loanProduct .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    loanProfile.product=b.dataset.v; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+  document.getElementById('loanTerm').addEventListener('change',()=>{
+    loanProfile.term=parseInt(document.getElementById('loanTerm').value)||50; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  });
+  document.querySelectorAll('#loanNewlywed .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#loanNewlywed .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    loanProfile.newlywed=b.dataset.v==='1'; loanDerivePrefs(); loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+  document.querySelectorAll('#loanChildren .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#loanChildren .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    loanProfile.children=parseInt(b.dataset.v)||0; loanDerivePrefs(); loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+  }));
+  const advT=document.getElementById('loanAdvToggle'), adv=document.getElementById('loanAdv');
+  advT.addEventListener('click',()=>{ const h=adv.style.display==='none'; adv.style.display=h?'':'none'; advT.textContent=h?'접기':'펼치기'; });
+
+  document.getElementById('loanSearchBtn').addEventListener('click',loanSearchSise);
+  document.getElementById('loanSearch').addEventListener('keydown',e=>{ if(e.key==='Enter') loanSearchSise(); });
+  document.getElementById('loanCalcBtn').addEventListener('click',loanCalc);
+  document.getElementById('loanPriceInput').addEventListener('keydown',e=>{ if(e.key==='Enter') loanCalc(); });
+
+  // 동기화(공유 코드) — 임장 체크리스트와 동일 코드 공유
+  document.getElementById('loanSyncNew').addEventListener('click',()=>{ ckSyncSetCode(ckGenCode()); ckSyncPull(); });
+  document.getElementById('loanSyncJoin').addEventListener('click',()=>{
+    const v=(document.getElementById('loanSyncInput').value||'').trim().toUpperCase();
+    if(!/^[A-Z0-9]{4,32}$/.test(v)){ ckSetSyncStatus('코드 형식 오류 (영문/숫자 4자 이상)',true); return; }
+    ckSyncSetCode(v); ckSyncPull();
+  });
+  document.getElementById('loanSyncInput').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loanSyncJoin').click(); });
+  document.getElementById('loanSyncLeave').addEventListener('click',()=>{ ckSyncSetCode(null); ckSetSyncStatus('연결 해제됨 (데이터는 이 기기에 남아 있어요)'); });
+  loanRenderSyncMini();
+  if(typeof ckSyncCode!=='undefined' && ckSyncCode) ckSyncPull();
+}
+
+/* 정보 툴팁: 모바일(터치)은 hover가 없으므로 탭으로 토글 + 바깥 탭 시 닫기 */
+document.addEventListener('click',function(e){
+  const ic=e.target.closest('.tip-ic');
+  document.querySelectorAll('.tip-wrap.open').forEach(w=>{ if(!ic || ic.parentElement!==w) w.classList.remove('open'); });
+  if(ic){ ic.parentElement.classList.toggle('open'); e.preventDefault(); e.stopPropagation(); }
+});
 
 initAreaView();
 </script>
