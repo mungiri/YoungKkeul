@@ -54,6 +54,8 @@
     font-variant-numeric:tabular-nums; letter-spacing:-.3px;
   }
   .frow input::-webkit-inner-spin-button{opacity:.25;}
+  .frow input:disabled{color:var(--sub); -webkit-text-fill-color:var(--sub); opacity:1; cursor:not-allowed;}
+  .frow:has(input:disabled){border-bottom-style:dashed; opacity:.85;}
   .suffix{color:var(--dim); font-size:14px; margin-left:8px;}
   .hint{font-size:12px; color:var(--dim); margin-top:5px; line-height:1.45;}
   /* 정보 툴팁(ⓘ 호버/탭) */
@@ -486,9 +488,14 @@
       <div id="loanSiseStatus" class="hint" style="margin-top:10px;"></div>
       <div id="loanSiseResult" style="display:none;margin-top:8px;"></div>
       <div class="divider" style="margin:18px 0 14px;"></div>
-      <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (직접 입력/조정)</div>
-        <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
-        <div class="hint">시세를 선택하면 자동으로 채워지고, 직접 수정도 가능해요.</div></label>
+      <div class="grid2">
+        <label class="field" style="margin-bottom:12px;"><div class="flabel">실거래가 (대출 기준)<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">대출(LTV·한도)은 <b>실거래가(담보 평가액)</b> 기준으로 정해져요. 호가가 더 높아도 대출은 이 금액으로 묶입니다. 시세조회로 자동 입력되며 <b>수정할 수 없어요</b>.</span></span></div>
+          <div class="frow"><input id="loanMarketPrice" type="number" disabled placeholder="시세조회로 자동 입력"><span class="suffix">만원</span></div>
+          <div class="hint">국토부 실거래가 · 대출 산정 기준값</div></label>
+        <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (실제 매수가·호가)</div>
+          <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
+          <div class="hint">실제 지불할 금액(호가). <b>필요 자금 = 매매가 − 대출</b></div></label>
+      </div>
       <button id="loanCalcBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);">대출 가능액 계산</button>
     </div>
 
@@ -1838,9 +1845,12 @@ function lClassifyLight(ratio, cashGap){
   return 'red';
 }
 
-/* ── 마무리: 필요현금·월상환·신호등 ── */
-function lFinalize(res, u, price, rate, years, repayment){
-  res.requiredCash=lRequiredCash(price, res.maxLoan);
+/* ── 마무리: 필요현금·월상환·신호등 ──
+   대출 한도는 '실거래가(price)' 기준으로 이미 산정됨. 필요현금은 실제 지불액인
+   '매매가(dealPrice·호가)' 기준 → 필요자금 = 매매가 − 대출 + 부대비용. */
+function lFinalize(res, u, price, dealPrice, rate, years, repayment){
+  res.appraised=price; res.dealPrice=dealPrice;
+  res.requiredCash=lRequiredCash(dealPrice, res.maxLoan);
   res.cashGap=res.requiredCash-u.cash;
   res.rate=rate; res.term=years;                            // 적용 금리(소수)·만기 기록
   let monthlyPay, payLabel;
@@ -1864,7 +1874,8 @@ function lFinalize(res, u, price, rate, years, repayment){
 
 /* ── 매칭 엔진 본체 ── */
 const REPAY_LABEL={equal:'원리금균등', declining:'체감식', graduated:'체증식'};
-function lEvalBogeum(u, price){
+function lEvalBogeum(u, price, dealPrice){
+  dealPrice = dealPrice==null ? price : dealPrice;          // 매매가 미지정 시 실거래가와 동일
   const res={loanType:'보금자리론', price, maxLoan:0, binding:'', constraints:[], eligible:true, reasons:[]};
   if(price>LReg.BOGEUM_PRICE_CEIL){ res.eligible=false; res.reasons.push(`주택가격 ${lWon(price)}이 보금자리론 상한 6억 초과 → 일반 주담대로 전환`); return res; }
   const incomeCeil = (u.newlywed || (u.children||0)>=2) ? LReg.BOGEUM_INCOME_CEIL_RELAX : LReg.BOGEUM_INCOME_CEIL;
@@ -1882,10 +1893,11 @@ function lEvalBogeum(u, price){
   res.constraints=[ltv,cap,dti];
   const b=res.constraints.reduce((a,c)=>c.limit<a.limit?c:a);
   res.maxLoan=b.limit; res.binding=b.name;
-  lFinalize(res, user, price, rate, term, user.repayment);
+  lFinalize(res, user, price, dealPrice, rate, term, user.repayment);
   return res;
 }
-function lEvalGeneral(u, price){
+function lEvalGeneral(u, price, dealPrice){
+  dealPrice = dealPrice==null ? price : dealPrice;
   const years=LReg.GEN_YEARS, rate=LReg.GEN_RATE;
   const res={loanType:'일반 주담대 / 원리금균등 50년', price, maxLoan:0, binding:'', constraints:[], eligible:true, reasons:[]};
   const ltvRate=u.isFirstHome?LReg.LTV_FIRST_HOME:LReg.LTV_GENERAL_REGULATED;
@@ -1895,13 +1907,14 @@ function lEvalGeneral(u, price){
   res.constraints=[ltv,cap,dsr];
   const b=res.constraints.reduce((a,c)=>c.limit<a.limit?c:a);
   res.maxLoan=b.limit; res.binding=b.name;
-  lFinalize(res, u, price, rate, years, 'equal');
+  lFinalize(res, u, price, dealPrice, rate, years, 'equal');
   return res;
 }
-function lMatch(u, price){
-  const bg=lEvalBogeum(u, price);
+function lMatch(u, price, dealPrice){
+  dealPrice = dealPrice==null ? price : dealPrice;
+  const bg=lEvalBogeum(u, price, dealPrice);
   if(bg.eligible) return bg;
-  const gen=lEvalGeneral(u, price);
+  const gen=lEvalGeneral(u, price, dealPrice);
   gen.reasons=bg.reasons.concat(gen.reasons);
   return gen;
 }
@@ -2061,19 +2074,23 @@ function loanRecalcIfPrice(){
 /* ── 계산 실행 ── */
 function loanCalc(){
   loanReadInputsToProfile();
-  const priceMan=parseFloat(document.getElementById('loanPriceInput').value);
-  if(!priceMan||priceMan<=0){ document.getElementById('loanSiseStatus').textContent='매매가(만원)를 입력하거나 시세를 선택하세요.'; return; }
+  const dealMan=parseFloat(document.getElementById('loanPriceInput').value);   // 매매가(호가)
+  const apprMan=parseFloat(document.getElementById('loanMarketPrice').value);   // 실거래가(대출 기준)
+  if(!dealMan||dealMan<=0){ document.getElementById('loanSiseStatus').textContent='매매가(만원)를 입력하거나 시세를 선택하세요.'; return; }
   if(!loanProfile.income){ document.getElementById('loanSiseStatus').textContent='먼저 ① 재무 프로필의 연소득을 입력하세요.'; }
-  const price=Math.round(priceMan*1e4);
+  const deal=Math.round(dealMan*1e4);
+  const appraised = (apprMan>0) ? Math.round(apprMan*1e4) : deal;   // 실거래가 없으면 매매가로 대체
   const u=loanEngineUser();
-  loanRenderResult(lMatch(u, price));
+  loanRenderResult(lMatch(u, appraised, deal));   // 대출=실거래가 기준, 필요자금=매매가 기준
   loanRenderMax(lMaxAffordablePrice(u));
 }
 function loanRenderResult(res){
   document.getElementById('loanResultPanel').style.display='';
   document.getElementById('loanBigLoan').textContent=lWon(res.maxLoan);
   document.getElementById('loanResultProduct').textContent=res.loanType;
-  document.getElementById('loanBinding').textContent='걸린 제약: '+res.binding+(res.reasons.length?` · ${res.reasons[res.reasons.length-1]}`:'');
+  const basis=(res.appraised!=null && res.dealPrice!=null && res.appraised!==res.dealPrice)
+    ? ` · 대출 기준 실거래가 ${lWon(res.appraised)} (매매가 ${lWon(res.dealPrice)})` : '';
+  document.getElementById('loanBinding').textContent='걸린 제약: '+res.binding+basis+(res.reasons.length?` · ${res.reasons[res.reasons.length-1]}`:'');
   document.getElementById('loanReqCash').textContent=lWon(res.requiredCash);
   const gap=document.getElementById('loanCashGap');
   if(res.cashGap>0){ gap.textContent=lWon(res.cashGap)+' 부족'; gap.style.color='var(--red)'; }
@@ -2151,7 +2168,9 @@ async function loanSearchSise(){
   });
 }
 function loanPickPrice(label, priceWon){
-  document.getElementById('loanPriceInput').value=Math.round(priceWon/1e4);
+  const man=Math.round(priceWon/1e4);
+  document.getElementById('loanMarketPrice').value=man;   // 실거래가(대출 기준, 읽기전용)
+  document.getElementById('loanPriceInput').value=man;    // 매매가 기본값 — 호가는 직접 수정
   document.getElementById('loanSearch').value=label;
   loanCalc();
   const rp=document.getElementById('loanResultPanel'); if(rp) rp.scrollIntoView({behavior:'smooth',block:'start'});
