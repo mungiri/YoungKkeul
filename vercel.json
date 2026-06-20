@@ -1,6 +1,7 @@
 {
   "outputDirectory": ".",
   "functions": {
-    "api/transactions.js": { "maxDuration": 30 }
+    "api/transactions.js": { "maxDuration": 30 },
+    "api/market.js": { "maxDuration": 30 }
   }
 }

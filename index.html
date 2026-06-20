@@ -260,6 +260,7 @@
   <div class="tabs">
     <button class="tab on" data-view="viewLoan">💰 영끌 계산</button>
     <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
+    <button class="tab" data-view="viewMarket">📈 시장 지표</button>
     <button class="tab" data-view="viewArea">🏙️ 상권 분석</button>
     <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
   </div>
@@ -301,6 +302,52 @@
 
     <p class="disclaimer">서울시 정비사업 정보몽땅(cleanup.seoul.go.kr) 사업장검색 기준. 진행단계는 원본 텍스트를 자동 분류한 것으로 실제와 다를 수 있으며, 지도 위치는 대표지번 주소를 지오코딩한 근사값입니다. 투자 판단의 단독 근거로 삼지 마세요.</p>
   </div><!-- /viewMap -->
+
+  <!-- ===== 📈 시장 지표 뷰 ===== -->
+  <div id="viewMarket" style="display:none;">
+    <div>
+      <div class="eyebrow">시장 지표 · 상승/하락 추세</div>
+      <p class="lede">자치구를 고르면 최근 실거래가로 <b>평당가 추세</b>와 <b>거래량</b>을 분석해 지금이 상승세인지 하락세인지 판정해 드려요.</p>
+    </div>
+
+    <div class="panel">
+      <div class="grid2" style="gap:12px;">
+        <label class="field" style="margin:0;"><div class="flabel">자치구</div>
+          <div class="frow"><select id="mktGu" style="flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:18px;font-weight:600;font-family:inherit;"></select></div></label>
+        <label class="field" style="margin:0;"><div class="flabel">분석 기간</div>
+          <div class="frow"><select id="mktMonths" style="flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:18px;font-weight:600;font-family:inherit;">
+            <option value="12">최근 12개월</option><option value="18">최근 18개월</option><option value="24">최근 24개월</option>
+          </select></div></label>
+      </div>
+      <button id="mktBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);margin-top:6px;">시장 분석하기</button>
+      <div id="mktStatus" class="hint" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- 판정 -->
+    <div class="panel" id="mktVerdictPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:6px;">현재 시장 <span id="mktGuLabel" style="color:var(--gold)"></span></div>
+      <div class="res-headline">
+        <div class="res-price" id="mktVerdict">–</div>
+        <div class="res-meta" id="mktChg3" style="font-weight:600;"></div>
+      </div>
+      <div class="grid3" style="margin-top:18px;">
+        <div class="stat"><div class="k">3개월 평당가</div><div class="v" id="mktChg3v">–</div></div>
+        <div class="stat"><div class="k">6개월 평당가</div><div class="v" id="mktChg6v">–</div></div>
+        <div class="stat"><div class="k">거래량(3개월)</div><div class="v" id="mktVolv">–</div></div>
+      </div>
+      <div class="binding-box" id="mktNow" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- 평당가 추이 -->
+    <div class="panel" id="mktChartPanel" style="display:none;">
+      <div class="res-label" style="margin-bottom:8px;">월별 평당가 추이 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 만원/평</span></div>
+      <canvas id="mktChart" style="width:100%;display:block;"></canvas>
+      <div class="res-label" style="margin:20px 0 8px;">월별 거래량 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 건</span></div>
+      <div class="barlist" id="mktVolBars"></div>
+    </div>
+
+    <p class="disclaimer">국토교통부 아파트 매매 실거래가에서 산출한 추정 지표입니다(한국부동산원·KB 공식 지수 아님). 신고 지연으로 최근 1~2개월은 거래가 적게 잡혀 변동성이 큽니다. 평당가는 전용면적 ㎡가를 평으로 환산한 값으로 공급 평단가와 차이가 있습니다.</p>
+  </div><!-- /viewMarket -->
 
   <!-- ===== 상권 분석 뷰 ===== -->
   <div id="viewArea" style="display:none;">
@@ -657,14 +704,16 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
   t.classList.add('on');
   const view=t.dataset.view;
-  document.getElementById('viewMap').style.display   = view==='viewMap'   ?'':'none';
-  document.getElementById('viewArea').style.display  = view==='viewArea'  ?'':'none';
-  document.getElementById('viewLoan').style.display  = view==='viewLoan'  ?'':'none';
-  document.getElementById('viewCheck').style.display = view==='viewCheck' ?'':'none';
-  if(view==='viewMap')   initMapView();
-  if(view==='viewArea')  initAreaView();
-  if(view==='viewLoan')  initLoanView();
-  if(view==='viewCheck') initCheckView();
+  document.getElementById('viewMap').style.display    = view==='viewMap'    ?'':'none';
+  document.getElementById('viewArea').style.display   = view==='viewArea'   ?'':'none';
+  document.getElementById('viewLoan').style.display   = view==='viewLoan'   ?'':'none';
+  document.getElementById('viewCheck').style.display  = view==='viewCheck'  ?'':'none';
+  document.getElementById('viewMarket').style.display = view==='viewMarket' ?'':'none';
+  if(view==='viewMap')    initMapView();
+  if(view==='viewArea')   initAreaView();
+  if(view==='viewLoan')   initLoanView();
+  if(view==='viewCheck')  initCheckView();
+  if(view==='viewMarket') initMarketView();
 }));
 
 const SEOUL_GU=['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'];
@@ -2256,6 +2305,85 @@ document.addEventListener('click',function(e){
   document.querySelectorAll('.tip-wrap.open').forEach(w=>{ if(!ic || ic.parentElement!==w) w.classList.remove('open'); });
   if(ic){ ic.parentElement.classList.toggle('open'); e.preventDefault(); e.stopPropagation(); }
 });
+
+/* ===================== 📈 시장 지표 뷰 ===================== */
+let mktInited=false, mktBusy=false;
+function initMarketView(){
+  if(mktInited) return; mktInited=true;
+  const sel=document.getElementById('mktGu');
+  SEOUL_GU.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+  sel.value='송파구';
+  document.getElementById('mktBtn').addEventListener('click', runMarketAnalysis);
+}
+async function runMarketAnalysis(){
+  if(mktBusy) return;
+  const gu=document.getElementById('mktGu').value;
+  const months=document.getElementById('mktMonths').value||12;
+  const st=document.getElementById('mktStatus');
+  mktBusy=true; st.textContent=`${gu} 실거래가 분석 중…`;
+  try{
+    const res=await fetch(`/api/market?gu=${encodeURIComponent(gu)}&months=${months}`);
+    const data=await res.json();
+    if(!res.ok){ st.textContent=data.error||'분석 실패'; mktBusy=false; return; }
+    mktRender(gu, data);
+    st.textContent=`완료 · 최근 ${months}개월 거래 ${(data.summary.totalDeals||0).toLocaleString()}건 분석.`;
+  }catch(e){ st.textContent='분석 오류: '+e.message; }
+  mktBusy=false;
+}
+function mktPct(v){ return v==null?'–':(v>0?'+':'')+v+'%'; }
+function mktPctColor(v){ return v>0?'var(--green)':(v<0?'var(--red)':'var(--sub)'); }
+function mktSetPct(id,v){ const el=document.getElementById(id); if(!el) return; el.textContent=mktPct(v); el.style.color = (v==null?'var(--ink)':mktPctColor(v)); }
+function mktRender(gu, data){
+  const s=data.summary||{};
+  document.getElementById('mktVerdictPanel').style.display='';
+  document.getElementById('mktChartPanel').style.display='';
+  document.getElementById('mktGuLabel').textContent='· '+gu;
+  const V={up:['🔺 상승세','var(--green)'],down:['🔻 하락세','var(--red)'],flat:['➖ 보합','var(--sub)']};
+  const vb=V[s.verdict]||V.flat;
+  const v=document.getElementById('mktVerdict'); v.textContent=vb[0]; v.style.color=vb[1];
+  const c3=document.getElementById('mktChg3'); c3.textContent='최근 3개월 '+mktPct(s.chg3); c3.style.color=mktPctColor(s.chg3);
+  mktSetPct('mktChg3v', s.chg3); mktSetPct('mktChg6v', s.chg6); mktSetPct('mktVolv', s.volChg);
+  document.getElementById('mktNow').innerHTML=`최근 3개월 평균 <b>평당 ${s.recentPyeongPrice?Math.round(s.recentPyeongPrice/1e4).toLocaleString()+'만':'–'}</b> · 월평균 거래 <b>${s.recentAvgCount!=null?s.recentAvgCount+'건':'–'}</b>`;
+  mktDrawChart(data.monthly||[]);
+  mktRenderVolBars(data.monthly||[]);
+}
+function mktDrawChart(monthly){
+  const pts=monthly.filter(m=>m.count>0).map(m=>({label:m.ym.slice(2,4)+'.'+m.ym.slice(4), v:m.pyeongPrice/1e4}));  // 만원/평
+  const canvas=document.getElementById('mktChart'); if(!canvas) return;
+  if(pts.length<2){ const c=canvas.getContext('2d'); c.clearRect(0,0,canvas.width,canvas.height); return; }
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth||340, H=200;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px'; canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const padL=8,padR=8,padT=18,padB=22;
+  const xs=(i)=> padL + (W-padL-padR)*(pts.length>1?i/(pts.length-1):0);
+  const vals=pts.map(p=>p.v); const min=Math.min(...vals), max=Math.max(...vals); const range=(max-min)||1;
+  const ys=(val)=> padT + (H-padT-padB)*(1-(val-min)/range);
+  ctx.strokeStyle='#0066cc'; ctx.lineWidth=2; ctx.beginPath();
+  pts.forEach((p,i)=>{ const x=xs(i),y=ys(p.v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+  ctx.lineTo(xs(pts.length-1), H-padB); ctx.lineTo(xs(0), H-padB); ctx.closePath();
+  ctx.fillStyle='rgba(0,102,204,.08)'; ctx.fill();
+  const li=pts.length-1, last=pts[li];
+  ctx.fillStyle='#0066cc'; ctx.beginPath(); ctx.arc(xs(li),ys(last.v),3.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#1d1d1f'; ctx.font='600 12px -apple-system,sans-serif'; ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+  ctx.fillText(Math.round(last.v).toLocaleString()+'만', xs(li), ys(last.v)-8);
+  ctx.fillStyle='#86868b'; ctx.font='11px -apple-system,sans-serif';
+  [0, Math.floor(li/2), li].forEach(i=>{ ctx.textAlign = i===0?'left':(i===li?'right':'center'); ctx.fillText(pts[i].label, xs(i), H-6); });
+}
+function mktRenderVolBars(monthly){
+  const wrap=document.getElementById('mktVolBars'); if(!wrap) return; wrap.innerHTML='';
+  const data=monthly.filter(m=>m.count>0);
+  const max=Math.max(1,...data.map(m=>m.count));
+  data.forEach(m=>{
+    const pct=Math.round(m.count/max*100);
+    const div=document.createElement('div'); div.className='barrow';
+    div.innerHTML=`<div class="bn">${m.ym.slice(0,4)}.${m.ym.slice(4)}</div>
+      <div class="bt"><div class="bf" style="width:${pct}%"></div></div>
+      <div class="bc">${m.count}</div>`;
+    wrap.appendChild(div);
+  });
+}
 
 initLoanView();   // 기본 탭 = 영끌 계산
 initSyncBar();    // 최상단 공용 동기화 바
