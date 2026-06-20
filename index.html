@@ -1965,6 +1965,14 @@ function loanRenderPrefs(){
     b.classList.toggle('on'); loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
   }));
 }
+/* 체증식은 50년 만기 불가(만 39세 이하+사전심사 시 최대 40년) → 50년 옵션 비활성 + 선택돼 있으면 40년으로 */
+function loanSyncTermOptions(){
+  const sel=document.getElementById('loanTerm'); if(!sel) return;
+  const opt50=sel.querySelector('option[value="50"]');
+  const grad=loanProfile.repayment==='graduated';
+  if(opt50){ opt50.disabled=grad; opt50.textContent=grad?'50년 (체증식 불가)':'50년'; }
+  if(grad && parseInt(sel.value,10)===50){ sel.value='40'; loanProfile.term=40; }
+}
 /* 금리 박스: 기준금리(자동/수정) − 우대 + 규제가산 → 적용금리 실시간 */
 function loanRenderRate(){
   const box=document.getElementById('loanRateBox'); if(!box) return;
@@ -2018,6 +2026,7 @@ function loanWriteProfileToInputs(){
   document.querySelectorAll('#loanProduct .toggle-btn').forEach(b=>b.classList.toggle('on', b.dataset.v===(loanProfile.product||'e')));
   document.querySelectorAll('#loanChildren .toggle-btn').forEach(b=>b.classList.toggle('on', +b.dataset.v===(loanProfile.children||0)));
   const termEl=document.getElementById('loanTerm'); if(termEl) termEl.value=String(loanProfile.term||50);
+  loanSyncTermOptions();
   loanRenderPrefs(); loanRenderRate();
 }
 function loanSetToggle(id,val){ const g=document.getElementById(id); if(!g) return;
@@ -2156,7 +2165,7 @@ function loanRenderSiseMatches(reg, matches){
     const sub = areas.length>1 ? `<div class="loan-areas" data-areas="${i}" style="display:none;margin:2px 0 10px 30px;">`+
         areas.map((a,j)=>`<div class="ck-irow" style="cursor:pointer;padding:7px 0;" data-area="${i}-${j}">
           <div class="ck-ileft"><span class="ck-iicon">📐</span>
-            <div><div class="ck-ilabel">전용 ${a.area}㎡ · 약 ${a.pyeong}평</div>
+            <div><div class="ck-ilabel">전용 ${a.area}㎡ · ${a.pyeong}평</div>
               <div class="ck-idesc">최근 <b>${lWon(a.recentPrice)}</b> · 평균 ${lWon(a.avgPrice)} (${a.count}건)</div></div></div>
           <button class="act-btn" style="flex-shrink:0;pointer-events:none;">선택</button></div>`).join('')+`</div>` : '';
     const desc = areas.length>1
@@ -2201,7 +2210,7 @@ function initLoanView(){
   loanBindToggle('loanExempt','exempt627');
   document.querySelectorAll('#loanRepay .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('#loanRepay .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
-    loanProfile.repayment=b.dataset.v; loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
+    loanProfile.repayment=b.dataset.v; loanSyncTermOptions(); loanSaveProfile(); loanRenderRate(); loanRecalcIfPrice();
   }));
   document.querySelectorAll('#loanProduct .toggle-btn').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('#loanProduct .toggle-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');

@@ -166,13 +166,13 @@ function priceTrend(deals) {
 }
 
 // 단지 내 전용면적(평형)별 가격 분해 — 같은 단지라도 평형마다 가격이 크게 다르므로 분리 제공.
-//   전용㎡를 정수로 반올림해 같은 타입(예: 84.92·84.99 → 85㎡)을 한 평형으로 묶는다.
-//   공급 평형은 전용㎡ × 0.4 근사(전용율 ~75% 가정: 84→34평, 59→24평).
+//   전용면적은 실거래 신고값(소수 2자리)을 그대로 사용(반올림 안 함). 같은 전용면적끼리만 묶는다.
+//   전용 평수 = 전용㎡ ÷ 3.305785 (실제 전용 기준, 공급 평형이 아님).
 function byAreaBreakdown(deals) {
   const m = new Map();
   for (const d of deals) {
     if (!d.area) continue;
-    const key = Math.round(d.area);
+    const key = Math.round(d.area * 100) / 100;   // 실제 전용면적(소수 2자리) 그대로
     if (!m.has(key)) m.set(key, { area: key, count: 0, sum: 0, recentDate: '', recentPrice: 0 });
     const g = m.get(key);
     g.count += 1; g.sum += d.priceWon;
@@ -180,8 +180,8 @@ function byAreaBreakdown(deals) {
   }
   return [...m.values()]
     .map((g) => ({
-      area: g.area,                       // 전용면적(㎡, 정수)
-      pyeong: Math.round(g.area * 0.4),   // 공급 평형 근사값
+      area: g.area,                                       // 실제 전용면적(㎡)
+      pyeong: Math.round(g.area / 3.305785 * 10) / 10,    // 전용 평수(소수 1자리)
       count: g.count,
       avgPrice: Math.round(g.sum / g.count),
       recentPrice: g.recentPrice,
