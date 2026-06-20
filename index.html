@@ -506,9 +506,34 @@
       <div class="binding-box" id="loanRateBox" style="margin-top:14px;margin-bottom:0;"></div>
     </div>
 
-    <!-- ① 내 재무 프로필 (템플릿) -->
+    <!-- ① 아파트 시세조회 + 매매가 -->
     <div class="panel">
-      <div class="res-label" style="margin-bottom:4px;">① 내 재무 프로필 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 한 번만 입력하면 자동 저장</span></div>
+      <div class="res-label" style="margin-bottom:4px;">① 아파트 시세조회</div>
+      <div class="hint" style="margin-bottom:12px;">단지명·주소를 넣으면 국토부 실거래가(서울 25개구)를 찾아 채워줘요. KB시세 등 따로 알면 ‘직접 입력’으로 넣어도 됩니다.</div>
+      <label class="field" style="margin-bottom:12px;"><div class="flabel">단지명 / 주소</div>
+        <div class="frow"><input id="loanSearch" type="text" placeholder="예: 헬리오시티 · 마포래미안푸르지오" style="font-size:18px;font-weight:500;"></div></label>
+      <button id="loanSearchBtn" class="toggle-btn on" style="width:100%;padding:12px;font-size:14px;font-weight:600;">실거래가 조회</button>
+      <div id="loanSiseStatus" class="hint" style="margin-top:10px;"></div>
+      <div id="loanSiseResult" style="display:none;margin-top:8px;"></div>
+      <div class="divider" style="margin:18px 0 14px;"></div>
+      <div class="grid2">
+        <label class="field" style="margin-bottom:12px;">
+          <div class="flabel" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span>실거래가 (대출 기준)<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">대출(LTV·한도)은 <b>실거래가(담보 평가액)</b> 기준으로 정해져요. 호가가 더 높아도 대출은 이 금액으로 묶입니다. 시세조회로 자동 입력되고, 시세가 없으면 ‘직접 입력’으로 KB시세·감정가를 넣으세요.</span></span></span>
+            <button type="button" class="act-btn" id="loanMktEditBtn" style="padding:3px 8px;font-size:11px;flex:0 0 auto;">직접 입력</button>
+          </div>
+          <div class="frow"><input id="loanMarketPrice" type="number" inputmode="numeric" disabled placeholder="시세조회로 자동 입력"><span class="suffix">만원</span></div>
+          <div class="hint">대출 산정 기준값 (실거래가·KB시세·감정가)</div></label>
+        <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (실제 매수가·호가)</div>
+          <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
+          <div class="hint">실제 지불할 금액(호가). <b>필요 자금 = 매매가 − 대출</b></div></label>
+      </div>
+      <button id="loanCalcBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);">대출 가능액 계산</button>
+    </div>
+
+    <!-- ② 내 재무 프로필 (템플릿) -->
+    <div class="panel">
+      <div class="res-label" style="margin-bottom:4px;">② 내 재무 프로필 <span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">· 한 번만 입력하면 자동 저장</span></div>
       <div class="hint" style="margin-bottom:14px;">부부합산 기준으로 넣어주세요. 모든 값은 이 기기(+공유코드)에만 저장됩니다.</div>
       <div class="grid2">
         <label class="field"><div class="flabel">보유 현금</div>
@@ -567,27 +592,6 @@
         </div>
         <div class="hint">DTI엔 기타부채 ‘이자’만, DSR엔 ‘원리금’ 전액이 반영됩니다.</div>
       </div>
-    </div>
-
-    <!-- ② 시세조회 -->
-    <div class="panel">
-      <div class="res-label" style="margin-bottom:4px;">② 아파트 시세조회</div>
-      <div class="hint" style="margin-bottom:12px;">단지명이나 주소를 넣으면 국토부 실거래가(서울 25개구)를 찾아 매매가를 자동으로 채워요.</div>
-      <label class="field" style="margin-bottom:12px;"><div class="flabel">단지명 / 주소</div>
-        <div class="frow"><input id="loanSearch" type="text" placeholder="예: 헬리오시티 · 마포래미안푸르지오" style="font-size:18px;font-weight:500;"></div></label>
-      <button id="loanSearchBtn" class="toggle-btn on" style="width:100%;padding:12px;font-size:14px;font-weight:600;">실거래가 조회</button>
-      <div id="loanSiseStatus" class="hint" style="margin-top:10px;"></div>
-      <div id="loanSiseResult" style="display:none;margin-top:8px;"></div>
-      <div class="divider" style="margin:18px 0 14px;"></div>
-      <div class="grid2">
-        <label class="field" style="margin-bottom:12px;"><div class="flabel">실거래가 (대출 기준)<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">대출(LTV·한도)은 <b>실거래가(담보 평가액)</b> 기준으로 정해져요. 호가가 더 높아도 대출은 이 금액으로 묶입니다. 시세조회로 자동 입력되며 <b>수정할 수 없어요</b>.</span></span></div>
-          <div class="frow"><input id="loanMarketPrice" type="number" disabled placeholder="시세조회로 자동 입력"><span class="suffix">만원</span></div>
-          <div class="hint">국토부 실거래가 · 대출 산정 기준값</div></label>
-        <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (실제 매수가·호가)</div>
-          <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
-          <div class="hint">실제 지불할 금액(호가). <b>필요 자금 = 매매가 − 대출</b></div></label>
-      </div>
-      <button id="loanCalcBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);">대출 가능액 계산</button>
     </div>
 
     <!-- ③ 결과 -->
@@ -2207,7 +2211,8 @@ async function loanSearchSise(){
       const reg=await loanRegion(loc);
       if(!reg){ st.textContent='행정구역을 확인하지 못했습니다.'; loanSiseBusy=false; return; }
       if(reg.si!=='서울특별시' || !SEOUL_GU.includes(reg.gu)){
-        st.innerHTML=`"${reg.gu||loc.label}"은(는) 실거래가 자동조회(서울 25개구)를 지원하지 않아요. 아래에 매매가를 직접 입력해 주세요.`;
+        loanSetMktEditable(true);   // 자동조회 불가 → 실거래가 직접 입력 가능하게
+        st.innerHTML=`"${reg.gu||loc.label}"은(는) 실거래가 자동조회(서울 25개구)를 지원하지 않아요. 실거래가(또는 KB시세)와 매매가를 직접 입력해 주세요.`;
         document.getElementById('loanSiseResult').style.display='none'; loanSiseBusy=false; return;
       }
       st.textContent=`${reg.gu} 실거래가 불러오는 중…`;
@@ -2226,9 +2231,17 @@ async function loanSearchSise(){
     loanSiseBusy=false;
   });
 }
+function loanSetMktEditable(on){   // 실거래가 직접 입력 잠금/해제
+  const inp=document.getElementById('loanMarketPrice'), btn=document.getElementById('loanMktEditBtn');
+  if(!inp) return;
+  inp.disabled=!on;
+  if(btn){ btn.textContent=on?'🔒 잠금':'직접 입력'; btn.style.color=on?'var(--gold)':''; btn.style.borderColor=on?'var(--gold)':''; }
+  if(on){ inp.placeholder='실거래가 직접 입력'; }
+}
 function loanPickPrice(label, priceWon){
   const man=Math.round(priceWon/1e4);
-  document.getElementById('loanMarketPrice').value=man;   // 실거래가(대출 기준, 읽기전용)
+  loanSetMktEditable(false);                               // 시세 선택값은 잠금(권위값)
+  document.getElementById('loanMarketPrice').value=man;   // 실거래가(대출 기준)
   document.getElementById('loanPriceInput').value=man;    // 매매가 기본값 — 호가는 직접 수정
   document.getElementById('loanSearch').value=label;
   loanCalc();
@@ -2312,6 +2325,10 @@ function initLoanView(){
   document.getElementById('loanSearch').addEventListener('keydown',e=>{ if(e.key==='Enter') loanSearchSise(); });
   document.getElementById('loanCalcBtn').addEventListener('click',loanCalc);
   document.getElementById('loanPriceInput').addEventListener('keydown',e=>{ if(e.key==='Enter') loanCalc(); });
+  // 실거래가 직접 입력 잠금/해제 + 수동 입력 시 재계산
+  document.getElementById('loanMktEditBtn').addEventListener('click',()=>loanSetMktEditable(document.getElementById('loanMarketPrice').disabled));
+  document.getElementById('loanMarketPrice').addEventListener('input',()=>loanRecalcIfPrice());
+  document.getElementById('loanMarketPrice').addEventListener('keydown',e=>{ if(e.key==='Enter') loanCalc(); });
 
   // 동기화(공유 코드)는 최상단 공용 바(initSyncBar)에서 처리
 }
