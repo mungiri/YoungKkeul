@@ -44,11 +44,12 @@ function tag(block, name) {
   return m ? m[1].trim() : '';
 }
 
-// 최근 N개월 YYYYMM (이번 달 제외, 직전 달부터 과거로)
-function recentYearMonths(n) {
+// 최근 N개월 YYYYMM (이번 달 제외, 직전 달부터 과거로). step>1이면 그 간격으로 샘플링(장기 차트용).
+function recentYearMonths(n, step) {
+  step = step || 1;
   const out = [];
   const base = new Date(); base.setDate(1);
-  for (let i = 1; i <= n; i++) {
+  for (let i = 1; i <= n; i += step) {
     const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
     out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
@@ -77,8 +78,13 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
   return items;
 }
 
-// 배열 평균
+// 배열 평균 / 중앙값(소수 고가거래 outlier에 강건 → 스파이크 방지)
 const avg = (arr) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
+const median = (arr) => {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b); const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
 
 // 동시 실행 개수 제한(장기간 조회 시 MOLIT 폭주 방지). 순서 보존 + settled 형태 반환.
 async function mapLimitSettled(items, limit, fn) {
@@ -109,8 +115,9 @@ module.exports = async function handler(req, res) {
       return;
     }
     const months = Math.min(Math.max(Number(q.months) || 12, 6), 60);   // 최대 5년(집값 차트용)
+    const step = Math.min(Math.max(Number(q.step) || 1, 1), 3);          // 1=매월, 2=격월, 3=분기(장기 차트 안정화)
 
-    const yms = recentYearMonths(months);   // [최근...과거]
+    const yms = recentYearMonths(months, step);   // [최근...과거]
     const settled = await mapLimitSettled(yms, 12, (ym) => withRetry(() => fetchMonth(serviceKey, lawdCd, ym)));
     if (!settled.some((s) => s.status === 'fulfilled')) {
       const reason = settled.find((s) => s.status === 'rejected');
@@ -122,14 +129,13 @@ module.exports = async function handler(req, res) {
     const monthly = yms.map((ym, i) => {
       const s = settled[i];
       const deals = s.status === 'fulfilled' ? s.value : [];
-      const ppms = deals.map((d) => d.priceWon / d.area);
-      const prices = deals.map((d) => d.priceWon);
+      const medPpm = median(deals.map((d) => d.priceWon / d.area));   // 중앙값 ㎡가(스파이크 방지)
       return {
         ym,
         count: deals.length,
-        avgPpm: Math.round(avg(ppms)),                 // 원/㎡
-        pyeongPrice: Math.round(avg(ppms) * 3.305785), // 평당가(원)
-        avgPrice: Math.round(avg(prices)),
+        avgPpm: Math.round(medPpm),                 // 원/㎡ (중앙값)
+        pyeongPrice: Math.round(medPpm * 3.305785), // 평당가(원)
+        avgPrice: Math.round(avg(deals.map((d) => d.priceWon))),
       };
     }).reverse();   // 과거→최근(차트용 오름차순)
 

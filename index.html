@@ -2394,10 +2394,11 @@ async function runHistChart(){
   const st=document.getElementById('mktHistStatus');
   if(!mktHistSel.length){ st.textContent='비교할 자치구를 1개 이상 선택하세요.'; return; }
   const months=mktHistYears*12;
+  const step=mktHistYears>=5?3:2;   // 5년=분기, 3년=격월 샘플링(과거 달 누락 방지)
   st.textContent='집값 데이터 불러오는 중…';
   try{
     const results=await Promise.all(mktHistSel.map(async(gu,idx)=>{
-      const res=await fetch(`/api/market?gu=${encodeURIComponent(gu)}&months=${months}`);
+      const res=await fetch(`/api/market?gu=${encodeURIComponent(gu)}&months=${months}&step=${step}`);
       const data=await res.json();
       if(!res.ok||!data.monthly) return null;
       const points=data.monthly.filter(m=>m.count>0).map(m=>({ym:m.ym, v:m.pyeongPrice/1e4}));
