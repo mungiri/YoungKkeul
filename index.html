@@ -232,10 +232,10 @@
 <body>
 <div class="wrap">
   <div class="tabs">
-    <button class="tab on" data-view="viewArea">🏙️ 상권 분석</button>
-    <button class="tab" data-view="viewLoan">💰 영끌 계산</button>
-    <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
+    <button class="tab on" data-view="viewLoan">💰 영끌 계산</button>
     <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
+    <button class="tab" data-view="viewArea">🏙️ 상권 분석</button>
+    <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
   </div>
 
   <!-- ===== 재개발 지도 뷰 ===== -->
@@ -277,7 +277,7 @@
   </div><!-- /viewMap -->
 
   <!-- ===== 상권 분석 뷰 ===== -->
-  <div id="viewArea">
+  <div id="viewArea" style="display:none;">
     <div>
       <div class="eyebrow">상권 분석 · 동네 분위기</div>
       <p class="lede">주소(또는 장소명)를 넣으면 반경 내 점포를 업종별로 집계해 카페·먹자·유흥·학원 등 동네 분위기를 자동으로 읽어줍니다. 전국 어디든 됩니다.</p>
@@ -374,7 +374,7 @@
   </div><!-- /viewArea -->
 
   <!-- ===== 💰 영끌 계산 뷰 ===== -->
-  <div id="viewLoan" style="display:none;">
+  <div id="viewLoan">
     <div>
       <div class="eyebrow">영끌 계산 · 대출 가능액 & 필요 자기자본</div>
       <p class="lede">내 재무 정보를 한 번만 넣어두면(자동 저장), 아파트 시세를 조회해 <b>받을 수 있는 대출</b>과 <b>필요한 내 돈(자기자본)</b>을 거꾸로 계산해 드려요. 한국주택금융공사 보금자리론 + 일반 주담대(스트레스 DSR) 기준.</p>
@@ -1446,10 +1446,29 @@ function ckRenderWeights(){
 }
 
 // ── 매물 카드 렌더 ──
+function ckHasContent(prop){   // 기입한 내용이 있는지(저장 버튼 노출 조건)
+  return !!(prop.name || prop.price || prop.memo || (prop.ratings && Object.keys(prop.ratings).length));
+}
 function ckRenderCard(prop, idx){
   const score=ckScore(prop);
   const scoreStr=score!=null?score+'점':'미평가';
   const scoreCol=ckScoreColor(score);
+
+  // 접힘 상태: 매물명 + 점수만 (펼치기/삭제). 저장하면 이 상태로 전환.
+  if(prop.collapsed){
+    return `<div class="panel" style="margin-top:8px;" id="ckCard${idx}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <span style="font-size:17px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ckEsc(prop.name||'(매물명 없음)')}</span>
+          <span style="font-size:16px;font-weight:700;color:${scoreCol};flex-shrink:0;">${scoreStr}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <button class="act-btn" data-expand="${idx}">펼치기</button>
+          <button class="act-btn" style="color:var(--red);border-color:var(--red);" data-del="${idx}">삭제</button>
+        </div>
+      </div>
+    </div>`;
+  }
 
   const cats=ckVisibleCats().map(cat=>{
     const items=ckVisibleItems().filter(i=>i.cat===cat);
@@ -1476,6 +1495,7 @@ function ckRenderCard(prop, idx){
         data-prop="${idx}" data-f="name" class="ck-finput"/>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <span style="font-size:22px;font-weight:700;color:${scoreCol};">${scoreStr}</span>
+        ${ckHasContent(prop)?`<button class="act-btn" style="color:var(--green);border-color:var(--green);" data-collapse="${idx}">저장</button>`:''}
         <button class="act-btn" style="color:var(--red);border-color:var(--red);" data-del="${idx}">삭제</button>
       </div>
     </div>
@@ -1527,6 +1547,13 @@ function ckRenderAllCards(){
       ckSaveState(); ckRenderAllCards(); ckRenderComp();
     });
   });
+  // 저장(접기) / 펼치기
+  el.querySelectorAll('[data-collapse]').forEach(btn=>btn.addEventListener('click',()=>{
+    const p=ckProps[parseInt(btn.dataset.collapse)]; if(p){ p.collapsed=true; ckSaveState(); ckRenderAllCards(); ckRenderComp(); }
+  }));
+  el.querySelectorAll('[data-expand]').forEach(btn=>btn.addEventListener('click',()=>{
+    const p=ckProps[parseInt(btn.dataset.expand)]; if(p){ p.collapsed=false; ckSaveState(); ckRenderAllCards(); ckRenderComp(); }
+  }));
 }
 
 // ── 비교(순위표 + 레이더 + 상세표) ──
@@ -2274,7 +2301,7 @@ document.addEventListener('click',function(e){
   if(ic){ ic.parentElement.classList.toggle('open'); e.preventDefault(); e.stopPropagation(); }
 });
 
-initAreaView();
+initLoanView();   // 기본 탭 = 영끌 계산
 </script>
 </body>
 </html>
