@@ -80,6 +80,21 @@ async function fetchMonth(serviceKey, lawdCd, dealYmd) {
 // 배열 평균
 const avg = (arr) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
 
+// 동시 실행 개수 제한(장기간 조회 시 MOLIT 폭주 방지). 순서 보존 + settled 형태 반환.
+async function mapLimitSettled(items, limit, fn) {
+  const ret = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      try { ret[idx] = { status: 'fulfilled', value: await fn(items[idx]) }; }
+      catch (e) { ret[idx] = { status: 'rejected', reason: e }; }
+    }
+  });
+  await Promise.all(workers);
+  return ret;
+}
+
 module.exports = async function handler(req, res) {
   try {
     const serviceKey = process.env.MOLIT_API_KEY;
@@ -93,10 +108,10 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ error: 'gu(서울 자치구명) 또는 lawdCd 5자리가 필요합니다.', available: Object.keys(SEOUL_LAWD) });
       return;
     }
-    const months = Math.min(Math.max(Number(q.months) || 12, 6), 24);
+    const months = Math.min(Math.max(Number(q.months) || 12, 6), 60);   // 최대 5년(집값 차트용)
 
     const yms = recentYearMonths(months);   // [최근...과거]
-    const settled = await Promise.allSettled(yms.map((ym) => withRetry(() => fetchMonth(serviceKey, lawdCd, ym))));
+    const settled = await mapLimitSettled(yms, 12, (ym) => withRetry(() => fetchMonth(serviceKey, lawdCd, ym)));
     if (!settled.some((s) => s.status === 'fulfilled')) {
       const reason = settled.find((s) => s.status === 'rejected');
       res.status(502).json({ error: `국토부 실거래가 조회 실패: ${(reason && reason.reason && reason.reason.message) || '알 수 없는 오류'}` });
