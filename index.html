@@ -264,7 +264,7 @@
 
   <div class="tabs">
     <button class="tab on" data-view="viewLoan">💰 영끌 계산</button>
-    <button class="tab" data-view="viewCheck">📋 임장 체크리스트</button>
+    <button class="tab" data-view="viewCheck">📋 임장<br>체크리스트</button>
     <button class="tab" data-view="viewMarket">📈 시장 지표</button>
     <button class="tab" data-view="viewArea">🏙️ 상권 분석</button>
     <button class="tab" data-view="viewMap">🏗️ 재개발 지도</button>
@@ -522,10 +522,10 @@
             <span>실거래가 (대출 기준)<span class="tip-wrap"><span class="tip-ic">i</span><span class="tip">대출(LTV·한도)은 <b>실거래가(담보 평가액)</b> 기준으로 정해져요. 호가가 더 높아도 대출은 이 금액으로 묶입니다. 시세조회로 자동 입력되고, 시세가 없으면 ‘직접 입력’으로 KB시세·감정가를 넣으세요.</span></span></span>
             <button type="button" class="act-btn" id="loanMktEditBtn" style="padding:3px 8px;font-size:11px;flex:0 0 auto;">직접 입력</button>
           </div>
-          <div class="frow"><input id="loanMarketPrice" type="number" inputmode="numeric" disabled placeholder="시세조회로 자동 입력"><span class="suffix">만원</span></div>
-          <div class="hint">대출 산정 기준값 (실거래가·KB시세·감정가)</div></label>
+          <div class="frow"><input id="loanMarketPrice" type="number" inputmode="decimal" step="0.01" disabled placeholder="시세조회로 자동 입력"><span class="suffix">억</span></div>
+          <div class="hint">대출 산정 기준값 (실거래가·KB시세·감정가) · 5억 5천 → <b>5.5</b></div></label>
         <label class="field" style="margin-bottom:12px;"><div class="flabel">매매가 (실제 매수가·호가)</div>
-          <div class="frow"><input id="loanPriceInput" type="number" inputmode="numeric" placeholder="예: 60000"><span class="suffix">만원</span></div>
+          <div class="frow"><input id="loanPriceInput" type="number" inputmode="decimal" step="0.01" placeholder="예: 5.5"><span class="suffix">억</span></div>
           <div class="hint">실제 지불할 금액(호가). <b>필요 자금 = 매매가 − 대출</b></div></label>
       </div>
       <button id="loanCalcBtn" class="toggle-btn on" style="width:100%;padding:13px;font-size:15px;font-weight:600;background:var(--gold);color:#fff;border-color:var(--gold);">대출 가능액 계산</button>
@@ -2137,12 +2137,12 @@ function loanRecalcIfPrice(){
 /* ── 계산 실행 ── */
 function loanCalc(){
   loanReadInputsToProfile();
-  const dealMan=parseFloat(document.getElementById('loanPriceInput').value);   // 매매가(호가)
-  const apprMan=parseFloat(document.getElementById('loanMarketPrice').value);   // 실거래가(대출 기준)
-  if(!dealMan||dealMan<=0){ document.getElementById('loanSiseStatus').textContent='매매가(만원)를 입력하거나 시세를 선택하세요.'; return; }
-  if(!loanProfile.income){ document.getElementById('loanSiseStatus').textContent='먼저 ① 재무 프로필의 연소득을 입력하세요.'; }
-  const deal=Math.round(dealMan*1e4);
-  const appraised = (apprMan>0) ? Math.round(apprMan*1e4) : deal;   // 실거래가 없으면 매매가로 대체
+  const dealEok=parseFloat(document.getElementById('loanPriceInput').value);   // 매매가(호가, 억)
+  const apprEok=parseFloat(document.getElementById('loanMarketPrice').value);   // 실거래가(대출 기준, 억)
+  if(!dealEok||dealEok<=0){ document.getElementById('loanSiseStatus').textContent='매매가(억)를 입력하거나 시세를 선택하세요.'; return; }
+  if(!loanProfile.income){ document.getElementById('loanSiseStatus').textContent='먼저 ② 재무 프로필의 연소득을 입력하세요.'; }
+  const deal=Math.round(dealEok*1e8);
+  const appraised = (apprEok>0) ? Math.round(apprEok*1e8) : deal;   // 실거래가 없으면 매매가로 대체
   const u=loanEngineUser();
   loanRenderResult(lMatch(u, appraised, deal));   // 대출=실거래가 기준, 필요자금=매매가 기준
   loanRenderMax(lMaxAffordablePrice(u));
@@ -2239,10 +2239,10 @@ function loanSetMktEditable(on){   // 실거래가 직접 입력 잠금/해제
   if(on){ inp.placeholder='실거래가 직접 입력'; }
 }
 function loanPickPrice(label, priceWon){
-  const man=Math.round(priceWon/1e4);
+  const eok=Math.round(priceWon/1e6)/100;                  // 억 단위(소수 2자리)
   loanSetMktEditable(false);                               // 시세 선택값은 잠금(권위값)
-  document.getElementById('loanMarketPrice').value=man;   // 실거래가(대출 기준)
-  document.getElementById('loanPriceInput').value=man;    // 매매가 기본값 — 호가는 직접 수정
+  document.getElementById('loanMarketPrice').value=eok;   // 실거래가(대출 기준)
+  document.getElementById('loanPriceInput').value=eok;    // 매매가 기본값 — 호가는 직접 수정
   document.getElementById('loanSearch').value=label;
   loanCalc();
   const rp=document.getElementById('loanResultPanel'); if(rp) rp.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2429,7 +2429,7 @@ async function runHistChart(){
 }
 function mktDrawHistChart(series){
   const canvas=document.getElementById('mktHistChart'); if(!canvas) return;
-  series.forEach(s=>s.points.sort((a,b)=>a.ym.localeCompare(b.ym)));
+  series.forEach(s=>{ s.points.sort((a,b)=>a.ym.localeCompare(b.ym)); s.points=mktSmooth(s.points,3); });   // 평탄화
   const allYm=[...new Set(series.flatMap(s=>s.points.map(p=>p.ym)))].sort();
   if(allYm.length<2) return;
   const xIndex={}; allYm.forEach((ym,i)=>xIndex[ym]=i);
@@ -2439,8 +2439,9 @@ function mktDrawHistChart(series){
   const padL=8,padR=8,padT=16,padB=22;
   const xs=(ym)=> padL+(W-padL-padR)*(xIndex[ym]/(allYm.length-1));
   const allV=series.flatMap(s=>s.points.map(p=>p.v));
-  const min=Math.min(...allV), max=Math.max(...allV), range=(max-min)||1;
-  const ys=(v)=> padT+(H-padT-padB)*(1-(v-min)/range);
+  let lo=Math.min(...allV), hi=Math.max(...allV);
+  const pad=(hi-lo)*0.15 || hi*0.05 || 1; lo-=pad; hi+=pad; const range=(hi-lo)||1;   // 위아래 여백
+  const ys=(v)=> padT+(H-padT-padB)*(1-(v-lo)/range);
   // 가로 그리드 3줄
   ctx.strokeStyle='#e5e5ea'; ctx.lineWidth=1;
   [0,0.5,1].forEach(f=>{ const y=padT+(H-padT-padB)*f; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke(); });
@@ -2529,8 +2530,13 @@ function mktRender(gu, data){
   mktDrawChart(data.monthly||[]);
   mktRenderVolBars(data.monthly||[]);
 }
+function mktSmooth(pts, win){   // 이동평균으로 평탄화(월별 스파이크 완화)
+  win=win||3; if(pts.length<3) return pts;
+  const half=Math.floor(win/2);
+  return pts.map((p,i)=>{ let s=0,n=0; for(let j=Math.max(0,i-half);j<=Math.min(pts.length-1,i+half);j++){ s+=pts[j].v; n++; } return Object.assign({},p,{v:s/n}); });
+}
 function mktDrawChart(monthly){
-  const pts=monthly.filter(m=>m.count>0).map(m=>({label:m.ym.slice(2,4)+'.'+m.ym.slice(4), v:m.pyeongPrice/1e4}));  // 만원/평
+  const pts=mktSmooth(monthly.filter(m=>m.count>0).map(m=>({label:m.ym.slice(2,4)+'.'+m.ym.slice(4), v:m.pyeongPrice/1e4})), 3);  // 만원/평 · 3개월 이동평균
   const canvas=document.getElementById('mktChart'); if(!canvas) return;
   if(pts.length<2){ const c=canvas.getContext('2d'); c.clearRect(0,0,canvas.width,canvas.height); return; }
   const dpr=window.devicePixelRatio||1;
@@ -2539,8 +2545,9 @@ function mktDrawChart(monthly){
   const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   const padL=8,padR=8,padT=18,padB=22;
   const xs=(i)=> padL + (W-padL-padR)*(pts.length>1?i/(pts.length-1):0);
-  const vals=pts.map(p=>p.v); const min=Math.min(...vals), max=Math.max(...vals); const range=(max-min)||1;
-  const ys=(val)=> padT + (H-padT-padB)*(1-(val-min)/range);
+  const vals=pts.map(p=>p.v); let lo=Math.min(...vals), hi=Math.max(...vals);
+  const pad=(hi-lo)*0.2 || hi*0.05 || 1; lo-=pad; hi+=pad; const range=(hi-lo)||1;   // 위아래 여백
+  const ys=(val)=> padT + (H-padT-padB)*(1-(val-lo)/range);
   ctx.strokeStyle='#0066cc'; ctx.lineWidth=2; ctx.beginPath();
   pts.forEach((p,i)=>{ const x=xs(i),y=ys(p.v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
   ctx.stroke();
