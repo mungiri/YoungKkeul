@@ -2219,7 +2219,7 @@ async function loanSearchSise(){
       const res=await fetch(`/api/transactions?gu=${encodeURIComponent(reg.gu)}&months=12&limit=100`);
       const data=await res.json();
       if(!res.ok){ st.textContent=(data.error||'실거래가 조회 실패'); loanSiseBusy=false; return; }
-      const nq=loanNorm(q.replace(reg.gu,'').replace(reg.dong||'',''));
+      const nq=loanNorm((loc.label||q).replace(reg.gu,'').replace(reg.dong||'',''));
       let matches=(data.complexes||[]).filter(c=>{ const nc=loanNorm(c.apt); return nc && nq && (nc.includes(nq)||nq.includes(nc)); });
       let fallback=false;
       if(!matches.length){ matches=(data.complexes||[]).slice(0,8); fallback=true; }
